@@ -1,1 +1,62 @@
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ETH RADAR FINAL</title><style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0b0f19;color:#eef2f7;margin:0;padding:17px}.wrap{max-width:560px;margin:auto}.card{background:#151e2e;border:1px solid #29364e;border-radius:16px;padding:16px;margin:11px 0}h1{font-size:22px;color:#55b8ef;margin:8px 0 2px}.sub{color:#6f8099;font-size:12px;margin-bottom:10px}.big{font-size:34px;font-weight:900}.LONG,.BULLISH{color:#52d273}.SHORT,.BEARISH{color:#ff625f}.NEUTRAL{color:#f6c44f}.small{font-size:13px;color:#9aa8bb;line-height:1.45}.line{margin:5px 0}.warn{color:#f6c44f}.good{color:#52d273}.bad{color:#ff625f}.pill{display:inline-block;padding:2px 7px;border-radius:7px;background:#26334a;font-size:11px;margin-left:5px}button{width:100%;padding:14px;background:#318bd0;color:#fff;border:0;border-radius:11px;font-weight:800;font-size:16px}table{width:100%;border-collapse:collapse;font-size:12px}td{padding:5px;border-bottom:1px solid #26334a;text-align:right}td:first-child{text-align:left}.news{padding:9px 0;border-top:1px solid #26334a}.news a{color:#e8edf5;text-decoration:none;font-weight:650}</style></head><body><div class="wrap">
+<h1>ETH RADAR · FINAL</h1><div class="sub">Anthropic + GPT merged build</div>
+<div id="health" class="small">Загрузка...</div><div id="top"></div><div id="cards"></div>
+<div class="card"><b>Честная проверка моделей (walk-forward + holdout)</b><div id="val" class="small" style="margin-top:8px">...</div></div>
+<div class="card"><b>Живая точность (сверка прогнозов с фактом)</b><div id="live_acc" class="small" style="margin-top:8px">Пока накапливается история...</div></div>
+<div class="card"><b>Live-контекст</b><div id="ctx" class="small" style="margin-top:8px">...</div></div>
+<div class="card"><b>Новости ETH — на русском</b><div id="news" style="margin-top:8px"></div></div>
+<button onclick="loadAll()">Обновить радар</button></div>
+<script>
+const ftime=x=>x?new Date(x).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+function card(name,h){
+  const rs=h.return_stats||{};
+  const ci=rs.interval_pct?`${rs.interval_pct[0]}…${rs.interval_pct[1]}%`:'нет достаточной статистики';
+  const pend=h.pending_flip?` · ждём ${h.pending_flip} (${h.pending_confirmations}/2)`:'';
+  return `<div class="card"><div class="small">${name} · цель ${ftime(h.forecast_target_time)}${h.model_backed?'':' <span class="pill warn">fallback</span>'}</div>
+  <div class="big ${h.direction}">${h.direction}</div>
+  <div class="line">Вероятность текущего направления: <b>${h.probability}%</b></div>
+  <div class="small">ML P(рост): ${h.ml_probability_up}% · после live-overlay: ${h.probability_up}%${pend}</div>
+  <div class="small">Ожидаемый результат по OOF-бакету: ${rs.expected_return_pct==null?'—':rs.expected_return_pct+'%'} · диапазон ${ci} · n=${rs.n||0}</div>
+  <div class="small">SL ${h.risk.stop_loss} (${h.risk.stop_pct}%) · TP ${h.risk.take_profit} (${h.risk.take_pct}%) · Kelly ${(h.risk.kelly_fraction*100).toFixed(1)}% ${h.risk.kill_switch?'<span class="bad">· KILL-SWITCH</span>':''}</div>
+  <div class="small">SL/TP — риск-план, не обещанный прогноз цены.</div></div>`;
+}
+async function loadAll(){
+ try{
+  const h=await fetch('/api/health',{cache:'no-store'}).then(r=>r.json());
+  document.getElementById('health').innerHTML=h.model_loaded?'3 ML-модели активны · Signal Stabilizer активен':(h.model_training?'Модели обучаются в фоне…':`Модель не загружена${h.training_error?' · '+h.training_error:''}`);
 
+  const p=await fetch('/api/v4/predict',{cache:'no-store'}).then(r=>r.json());
+  document.getElementById('top').innerHTML=`<div class="card"><b>ETH ${p.price} USDT</b><div class="small">Live OKX · признаки по закрытой 1H свече ${p.as_of_closed_candle.close_price} (${ftime(p.as_of_closed_candle.time)})</div></div>`;
+  document.getElementById('cards').innerHTML=card('1 ЧАС',p.horizon_1h)+card('12 ЧАСОВ',p.horizon_12h)+card('24 ЧАСА',p.horizon_24h);
+
+  const c=p.live_context;
+  document.getElementById('ctx').innerHTML=`Funding ${c.funding_rate}<br>Recent tape buy ratio ${(c.recent_trade_buy_ratio*100).toFixed(1)}%<br>Orderbook OFI ${c.orderbook_ofi}<br>Microprice edge ${c.microprice_edge}<br>1H live-overlay ${c.microstructure_overlay} (влияние ограничено ±5 п.п.)`;
+
+  const v=await fetch('/api/v4/validation',{cache:'no-store'}).then(r=>r.json());
+  if(v.status==='ok'){
+    let s='<table><tr><td>Горизонт</td><td>Holdout acc</td><td>Brier</td><td>Long P</td><td>Short P</td></tr>';
+    for(const [k,r] of Object.entries(v.horizons)){
+      const q=r.holdout;
+      s+=`<tr><td>${k.slice(1)}ч</td><td>${(q.accuracy*100).toFixed(1)}%</td><td>${q.brier.toFixed(3)}</td><td>${(q.long_precision*100).toFixed(1)}%</td><td>${(q.short_precision*100).toFixed(1)}%</td></tr>`;
+    }
+    document.getElementById('val').innerHTML=s+'</table><div style="margin-top:7px">Последние 15% истории — отдельный untouched holdout. Вероятности откалиброваны sigmoid/Platt.</div>';
+
+    const la=v.live_tracked_accuracy||{};
+    if(Object.keys(la).length){
+      document.getElementById('live_acc').innerHTML=Object.entries(la).map(([k,r])=>
+        `<b>${k.replace('h','')}ч:</b> winrate ${r.win_rate_pct}% на n=${r.n} реальных прогнозах (LONG n=${r.long_n}, SHORT n=${r.short_n})`
+      ).join('<br>');
+    }
+  } else {
+    document.getElementById('val').textContent='Валидация появится после первого обучения.';
+  }
+
+  const n=await fetch('/api/v4/news',{cache:'no-store'}).then(r=>r.json());
+  document.getElementById('news').innerHTML=(n.articles||[]).map(x=>`<div class="news"><a target="_blank" href="${x.link}">${x.title}</a><div class="small ${x.sentiment}">${x.sentiment}</div></div>`).join('') || '<div class="small">Новости временно недоступны</div>';
+ }catch(e){
+  document.getElementById('health').innerHTML='<span class="bad">Ошибка: '+e+'</span>';
+ }
+}
+loadAll();
+</script></body></html>
