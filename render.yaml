@@ -1,0 +1,5 @@
+services:
+  - type: web
+    name: eth-radar-unified-v4
+    env: docker
+    healthCheckPath: /api/health
