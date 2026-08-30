@@ -3,3 +3,11 @@ services:
     name: eth-radar-unified-v4
     env: docker
     healthCheckPath: /api/health
+
+  - type: cron
+    name: eth-radar-pinger
+    runtime: image
+    image:
+      url: curlimages/curl:latest
+    schedule: "*/15 * * * *"
+    dockerCommand: curl -sf https://eth-anthropic-gpt.onrender.com/api/v4/predict
