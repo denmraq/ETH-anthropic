@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ETH RADAR — Крипто Пузырь</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#05070a">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ETH Radar">
+<meta name="mobile-web-app-capable" content="yes">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #05070a;
+    --panel: #0d1218;
+    --panel-2: #10161d;
+    --line: #1e2831;
+    --long: #33ffb0;
+    --long-dim: #0f4a38;
+    --short: #ff4d6d;
+    --short-dim: #4a1522;
+    --amber: #ffb340;
+    --text: #e8edf2;
+    --text-dim: #7d8b96;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color: transparent;}
+  html,body{ height:100%; }
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family:'JetBrains Mono', monospace;
+    min-height:100vh;
+    padding: max(20px, env(safe-area-inset-top)) 14px calc(60px + env(safe-area-inset-bottom));
+    background-image:
+      radial-gradient(circle at 15% 0%, rgba(51,255,176,0.07), transparent 40%),
+      radial-gradient(circle at 85% 10%, rgba(255,77,109,0.06), transparent 40%);
+    overscroll-behavior-y: contain;
+  }
+  .wrap{ max-width: 480px; margin: 0 auto; }
+
+  header{ margin-bottom: 22px; }
+  .eyebrow{
+    font-size: 12px; color: var(--text-dim); letter-spacing: 0.02em;
+    display:flex; align-items:center; gap:8px; margin-bottom:6px;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--long); box-shadow:0 0 8px var(--long); animation: pulse 1.6s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
+  h1{
+    font-family:'Space Grotesk', sans-serif; font-weight:700;
+    font-size: 30px; line-height:1.1; letter-spacing:-0.01em;
+  }
+  h1 span{ color: var(--long); }
+
+  .card{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    margin-bottom: 14px;
+  }
+
+  label{ display:block; font-size:12px; color: var(--text-dim); margin-bottom:8px; }
+  .price-row{ display:flex; align-items:center; gap:10px; }
+  .price-row span{ font-family:'Space Grotesk',sans-serif; font-size:20px; color: var(--text-dim); }
+  input[type=number]{
+    flex:1;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family:'Space Grotesk', sans-serif; font-weight:700;
+    font-size: 26px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    width: 100%;
+  }
+  input[type=number]:focus{ outline: none; border-color: var(--long); }
+
+  .slider-block{ margin-top:16px; }
+  .slider-head{ display:flex; justify-content:space-between; font-size:12px; color:var(--text-dim); margin-bottom:8px;}
+  .slider-head b{ color: var(--text); font-size:13px; }
+  input[type=range]{
+    width:100%; -webkit-appearance:none; height:6px; border-radius:4px;
+    background: linear-gradient(90deg, var(--short) 0%, var(--line) 50%, var(--long) 100%);
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:20px; height:20px; border-radius:50%;
+    background: var(--text); border:3px solid var(--bg); cursor:pointer; margin-top:-1px;
+  }
+  .scale{ display:flex; justify-content:space-between; font-size:10px; color:var(--text-dim); margin-top:4px; }
+
+  button.scan{
+    width:100%; margin-top:18px; padding:16px;
+    background: var(--long); color:#00291d; border:none; border-radius: 10px;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;
+    letter-spacing:0.01em; cursor:pointer;
+    transition: transform .08s ease;
+  }
+  button.scan:active{ transform: scale(0.98); }
+
+  .install-hint{
+    display:none; align-items:center; gap:10px;
+    background: var(--panel-2); border:1px dashed var(--line); border-radius:12px;
+    padding:12px 14px; margin-bottom:14px; font-size:12.5px; color: var(--text-dim); line-height:1.5;
+  }
+  .install-hint.show{ display:flex; }
+  .install-hint button{
+    flex-shrink:0; background: var(--long); color:#00291d; border:none;
+    padding:8px 12px; border-radius:8px; font-family:'JetBrains Mono',monospace; font-weight:700; font-size:12px; cursor:pointer;
+  }
+
+  /* RESULT */
+  .result{ display:none; }
+  .result.show{ display:block; }
+
+  .signal-card{
+    border-radius:14px; padding:20px; margin-bottom:14px;
+    border:1px solid var(--line);
+    position:relative; overflow:hidden;
+  }
+  .signal-card.long{ background: linear-gradient(160deg, var(--long-dim), var(--panel) 60%); border-color:#175943; }
+  .signal-card.short{ background: linear-gradient(160deg, var(--short-dim), var(--panel) 60%); border-color:#66222f; }
+
+  .sig-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .sig-label{ font-size:12px; color: var(--text-dim); }
+  .sig-word{
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:44px; line-height:1;
+    margin-top:4px;
+  }
+  .long .sig-word{ color: var(--long); }
+  .short .sig-word{ color: var(--short); }
+
+  .conf-pill{
+    font-size:12px; padding:6px 10px; border-radius:20px; white-space:nowrap;
+    background: rgba(255,255,255,0.06); border:1px solid var(--line);
+  }
+
+  .entry-line{ margin-top:14px; font-size:13px; color:var(--text-dim); }
+  .entry-line b{ color: var(--text); font-size:15px; }
+
+  .levels{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:16px; }
+  .lvl-box{ background: rgba(0,0,0,0.25); border-radius:10px; padding:10px 12px; border:1px solid var(--line); }
+  .lvl-box .k{ font-size:11px; color:var(--text-dim); margin-bottom:4px; }
+  .lvl-box .v{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:17px; }
+  .lvl-box.tp .v{ color: var(--long); }
+  .lvl-box.sl .v{ color: var(--short); }
+
+  .meters{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .meter-box{ background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .meter-box .mk{ font-size:12px; color:var(--text-dim); margin-bottom:8px; display:flex; justify-content:space-between; }
+  .meter-box .mk b{ color:var(--amber); font-family:'Space Grotesk',sans-serif; font-size:16px; }
+  .bar-bg{ height:8px; border-radius:5px; background: var(--panel-2); overflow:hidden; }
+  .bar-fill{ height:100%; border-radius:5px; background: linear-gradient(90deg, var(--amber), #ff7a3d); }
+
+  .verdict{
+    margin-top:14px; font-size:13.5px; line-height:1.5; color: var(--text);
+    padding-top:14px; border-top:1px dashed var(--line);
+  }
+
+  footer{ margin-top:20px; font-size:11px; color: var(--text-dim); line-height:1.6; text-align:center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow"><span class="dot"></span>ETH/USDT · LIVE СКАН</div>
+    <h1>Радар <span>ETH</span> — лонг или шорт</h1>
+  </header>
+
+  <div class="install-hint" id="installHint">
+    <span id="installText">Установи как приложение — иконка появится на главном экране 📲</span>
+    <button id="installBtn">Установить</button>
+  </div>
+
+  <div class="card">
+    <label>Текущая цена ETH сейчас</label>
+    <div class="price-row">
+      <span>$</span>
+      <input type="number" id="price" value="2450" step="0.1">
+    </div>
+
+    <div class="slider-block">
+      <div class="slider-head"><span>Давление рынка</span><b id="pressureLabel">58 / 100</b></div>
+      <input type="range" id="pressure" min="0" max="100" value="58">
+      <div class="scale"><span>Шорт-давление</span><span>Лонг-давление</span></div>
+    </div>
+
+    <button class="scan" id="scanBtn">Сканировать → выдать сигнал</button>
+  </div>
+
+  <div class="result" id="result">
+
+    <div class="signal-card" id="signalCard">
+      <div class="sig-top">
+        <div>
+          <div class="sig-label">Сигнал на вход прямо сейчас</div>
+          <div class="sig-word" id="sigWord">LONG</div>
+        </div>
+        <div class="conf-pill" id="confPill">увер. 80%</div>
+      </div>
+
+      <div class="entry-line">Вход по рынку: <b id="entryPrice">$2450.0</b> — без ожидания цены</div>
+
+      <div class="levels">
+        <div class="lvl-box tp"><div class="k">TP1</div><div class="v" id="tp1">—</div></div>
+        <div class="lvl-box tp"><div class="k">TP2</div><div class="v" id="tp2">—</div></div>
+        <div class="lvl-box sl"><div class="k">SL</div><div class="v" id="sl">—</div></div>
+        <div class="lvl-box tp"><div class="k">TP3</div><div class="v" id="tp3">—</div></div>
+      </div>
+
+      <div class="verdict" id="verdictText"></div>
+    </div>
+
+    <div class="meters">
+      <div class="meter-box">
+        <div class="mk">Оптимизм <b>80</b></div>
+        <div class="bar-bg"><div class="bar-fill" style="width:80%"></div></div>
+      </div>
+      <div class="meter-box">
+        <div class="mk">Азарт <b>77</b></div>
+        <div class="bar-bg"><div class="bar-fill" style="width:77%"></div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer>Не финсовет. Радар выдаёт мгновенное решение по введённым данным — риском и депозитом управляй сам 🫷</footer>
+</div>
+
+<script>
+const priceInput = document.getElementById('price');
+const pressureInput = document.getElementById('pressure');
+const pressureLabel = document.getElementById('pressureLabel');
+const scanBtn = document.getElementById('scanBtn');
+const result = document.getElementById('result');
+const signalCard = document.getElementById('signalCard');
+const sigWord = document.getElementById('sigWord');
+const confPill = document.getElementById('confPill');
+const entryPrice = document.getElementById('entryPrice');
+const verdictText = document.getElementById('verdictText');
+
+const longPhrases = [
+  "Давление на стороне покупателей — забираем лонг прямо по рынку, без пересиживания входа. TP расставлены по ходу движения, SL держим жёстко 💪",
+  "Импульс наверх подтверждён — заходим в лонг сейчас же. Первая цель забирает часть позиции, дальше едем к следующим уровням 👉",
+  "Покупатели давят сильнее — вход в лонг по текущей цене, без ожидания отката. Двигаемся по уровням до срабатывания стопа или тейков 🫧"
+];
+const shortPhrases = [
+  "Давление на стороне продавцов — берём шорт по рынку прямо сейчас. Цели вниз расставлены по структуре, стоп фиксирует риск 👇",
+  "Импульс вниз сильнее — заходим в шорт без ожидания, вход по текущей цене. Едем по уровням до тейка или стопа 🫷",
+  "Продавцы контролируют движение — шорт по рынку сейчас же, TP и SL уже расставлены ниже/выше по структуре 👣"
+];
+
+function fmt(n){ return '$' + n.toFixed(1); }
+
+function runScan(){
+  const price = parseFloat(priceInput.value) || 2450;
+  const pressure = parseInt(pressureInput.value);
+  const isLong = pressure >= 50;
+  const strength = Math.abs(pressure - 50) / 50; // 0..1
+  const conf = Math.round(60 + strength * 35); // 60-95%
+
+  const baseMove = price * (0.006 + strength * 0.01);
+
+  signalCard.className = 'signal-card ' + (isLong ? 'long' : 'short');
+  sigWord.textContent = isLong ? 'LONG' : 'SHORT';
+  confPill.textContent = 'увер. ' + conf + '%';
+  entryPrice.textContent = fmt(price);
+
+  const tp1 = isLong ? price + baseMove * 1 : price - baseMove * 1;
+  const tp2 = isLong ? price + baseMove * 2.2 : price - baseMove * 2.2;
+  const tp3 = isLong ? price + baseMove * 3.6 : price - baseMove * 3.6;
+  const sl  = isLong ? price - baseMove * 1.3 : price + baseMove * 1.3;
+
+  document.getElementById('tp1').textContent = fmt(tp1);
+  document.getElementById('tp2').textContent = fmt(tp2);
+  document.getElementById('tp3').textContent = fmt(tp3);
+  document.getElementById('sl').textContent  = fmt(sl);
+
+  const phrases = isLong ? longPhrases : shortPhrases;
+  verdictText.textContent = phrases[Math.floor(Math.random() * phrases.length)];
+
+  result.classList.add('show');
+}
+
+pressureInput.addEventListener('input', () => {
+  pressureLabel.textContent = pressureInput.value + ' / 100';
+});
+
+scanBtn.addEventListener('click', runScan);
+
+/* ---- PWA install prompt ---- */
+let deferredPrompt = null;
+const installHint = document.getElementById('installHint');
+const installBtn = document.getElementById('installBtn');
+const installText = document.getElementById('installText');
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  installHint.classList.add('show');
+});
+
+installBtn.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  installHint.classList.remove('show');
+});
+
+// iOS Safari has no beforeinstallprompt — show manual instructions instead
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+if (isIOS && !isStandalone) {
+  installText.textContent = 'Установи как приложение: нажми "Поделиться" внизу браузера → "На экран Домой" 📲';
+  installBtn.style.display = 'none';
+  installHint.classList.add('show');
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
