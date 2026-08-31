@@ -96,6 +96,29 @@
   }
   .scale{ display:flex; justify-content:space-between; font-size:10px; color:var(--text-dim); margin-top:4px; }
 
+  .live-row{
+    display:flex; align-items:center; gap:8px; font-size:11.5px; color: var(--text-dim);
+    margin-bottom:14px;
+  }
+  .live-dot{ width:7px; height:7px; border-radius:50%; background:#555; flex-shrink:0; }
+  .live-dot.on{ background: var(--long); box-shadow:0 0 8px var(--long); animation: pulse 1.6s infinite; }
+  .live-dot.off{ background: var(--short); box-shadow:0 0 8px var(--short); }
+  .live-time{ margin-left:auto; }
+
+  .price-display{
+    flex:1;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family:'Space Grotesk', sans-serif; font-weight:700;
+    font-size: 26px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    width: 100%;
+  }
+
+  button.scan:disabled{ opacity:0.5; cursor:default; }
+
   button.scan{
     width:100%; margin-top:18px; padding:16px;
     background: var(--long); color:#00291d; border:none; border-radius: 10px;
@@ -181,19 +204,25 @@
   </div>
 
   <div class="card">
-    <label>Текущая цена ETH сейчас</label>
+    <div class="live-row">
+      <div class="live-dot" id="liveDot"></div>
+      <span id="liveStatus">Подключаюсь к Binance…</span>
+      <span class="live-time" id="liveTime"></span>
+    </div>
+
+    <label>Текущая цена ETH (Binance, live)</label>
     <div class="price-row">
       <span>$</span>
-      <input type="number" id="price" value="2450" step="0.1">
+      <div class="price-display" id="price">—</div>
     </div>
 
     <div class="slider-block">
-      <div class="slider-head"><span>Давление рынка</span><b id="pressureLabel">58 / 100</b></div>
-      <input type="range" id="pressure" min="0" max="100" value="58">
+      <div class="slider-head"><span>Давление рынка (авто, по EMA 15м)</span><b id="pressureLabel">— / 100</b></div>
+      <input type="range" id="pressure" min="0" max="100" value="50" disabled>
       <div class="scale"><span>Шорт-давление</span><span>Лонг-давление</span></div>
     </div>
 
-    <button class="scan" id="scanBtn">Сканировать → выдать сигнал</button>
+    <button class="scan" id="scanBtn" disabled>Загружаю данные…</button>
   </div>
 
   <div class="result" id="result">
@@ -236,7 +265,7 @@
 </div>
 
 <script>
-const priceInput = document.getElementById('price');
+const priceDisplay = document.getElementById('price');
 const pressureInput = document.getElementById('pressure');
 const pressureLabel = document.getElementById('pressureLabel');
 const scanBtn = document.getElementById('scanBtn');
@@ -246,6 +275,9 @@ const sigWord = document.getElementById('sigWord');
 const confPill = document.getElementById('confPill');
 const entryPrice = document.getElementById('entryPrice');
 const verdictText = document.getElementById('verdictText');
+const liveDot = document.getElementById('liveDot');
+const liveStatus = document.getElementById('liveStatus');
+const liveTime = document.getElementById('liveTime');
 
 const longPhrases = [
   "Давление на стороне покупателей — забираем лонг прямо по рынку, без пересиживания входа. TP расставлены по ходу движения, SL держим жёстко 💪",
@@ -260,9 +292,66 @@ const shortPhrases = [
 
 function fmt(n){ return '$' + n.toFixed(1); }
 
+function ema(values, period){
+  const k = 2 / (period + 1);
+  let emaArr = [values[0]];
+  for(let i=1;i<values.length;i++){
+    emaArr.push(values[i]*k + emaArr[i-1]*(1-k));
+  }
+  return emaArr[emaArr.length-1];
+}
+
+let lastPrice = null;
+let lastPressure = 50;
+
+async function fetchLiveData(){
+  try{
+    const klRes = await fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=60');
+    if(!klRes.ok) throw new Error('klines fail');
+    const klines = await klRes.json();
+    const closes = klines.map(k => parseFloat(k[4]));
+    const price = closes[closes.length-1];
+
+    const e6 = ema(closes.slice(-30), 6);
+    const e12 = ema(closes.slice(-40), 12);
+    const e20 = ema(closes.slice(-60), 20);
+
+    // bias: how far short EMA sits above/below long EMA, normalized
+    const spread = (e6 - e20) / e20;
+    const spread2 = (e12 - e20) / e20;
+    const rawBias = (spread * 0.6 + spread2 * 0.4) * 4000; // scale
+    const pressure = Math.max(0, Math.min(100, Math.round(50 + rawBias)));
+
+    lastPrice = price;
+    lastPressure = pressure;
+
+    priceDisplay.textContent = price.toFixed(2);
+    pressureInput.value = pressure;
+    pressureInput.disabled = false;
+    pressureLabel.textContent = pressure + ' / 100';
+
+    liveDot.className = 'live-dot on';
+    liveStatus.textContent = 'Live · Binance ETHUSDT · 15м';
+    const now = new Date();
+    liveTime.textContent = now.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+
+    scanBtn.disabled = false;
+    scanBtn.textContent = 'Сканировать → выдать сигнал';
+
+    return true;
+  }catch(err){
+    liveDot.className = 'live-dot off';
+    liveStatus.textContent = 'Нет связи с биржей — проверь интернет';
+    scanBtn.disabled = true;
+    scanBtn.textContent = 'Нет данных';
+    return false;
+  }
+}
+
 function runScan(){
-  const price = parseFloat(priceInput.value) || 2450;
-  const pressure = parseInt(pressureInput.value);
+  if(lastPrice === null) return;
+  const price = lastPrice;
+  const pressure = lastPressure;
   const isLong = pressure >= 50;
   const strength = Math.abs(pressure - 50) / 50; // 0..1
   const conf = Math.round(60 + strength * 35); // 60-95%
@@ -290,11 +379,10 @@ function runScan(){
   result.classList.add('show');
 }
 
-pressureInput.addEventListener('input', () => {
-  pressureLabel.textContent = pressureInput.value + ' / 100';
-});
-
 scanBtn.addEventListener('click', runScan);
+
+fetchLiveData();
+setInterval(fetchLiveData, 20000); // refresh live price/pressure every 20s
 
 /* ---- PWA install prompt ---- */
 let deferredPrompt = null;
