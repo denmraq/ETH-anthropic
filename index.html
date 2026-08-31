@@ -237,6 +237,7 @@
       </div>
 
       <div class="entry-line">Вход по рынку: <b id="entryPrice">$2450.0</b> — без ожидания цены</div>
+      <div class="entry-line" style="margin-top:4px;">TP/SL — по свинг-уровням 1H за 8 дней, не формула</div>
 
       <div class="levels">
         <div class="lvl-box tp"><div class="k">TP1</div><div class="v" id="tp1">—</div></div>
@@ -301,14 +302,55 @@ function ema(values, period){
   return emaArr[emaArr.length-1];
 }
 
+// Find swing highs/lows: a bar is a pivot if it's the extreme within leftBars/rightBars around it
+function findPivots(highs, lows, leftBars, rightBars){
+  const pivotHighs = [];
+  const pivotLows = [];
+  for(let i=leftBars; i<highs.length-rightBars; i++){
+    let isHigh = true, isLow = true;
+    for(let j=i-leftBars; j<=i+rightBars; j++){
+      if(j===i) continue;
+      if(highs[j] >= highs[i]) isHigh = false;
+      if(lows[j] <= lows[i]) isLow = false;
+    }
+    if(isHigh) pivotHighs.push(highs[i]);
+    if(isLow) pivotLows.push(lows[i]);
+  }
+  return { pivotHighs, pivotLows };
+}
+
+// Merge levels that sit within thresholdPct of each other into a single averaged level
+function clusterLevels(levels, thresholdPct){
+  if(levels.length === 0) return [];
+  const sorted = [...levels].sort((a,b) => a-b);
+  const clusters = [[sorted[0]]];
+  for(let i=1; i<sorted.length; i++){
+    const last = clusters[clusters.length-1];
+    const avg = last.reduce((a,b)=>a+b,0) / last.length;
+    if(Math.abs(sorted[i]-avg)/avg < thresholdPct){
+      last.push(sorted[i]);
+    } else {
+      clusters.push([sorted[i]]);
+    }
+  }
+  return clusters.map(c => c.reduce((a,b)=>a+b,0)/c.length);
+}
+
+let structureLevels = { resistances: [], supports: [] };
+
 let lastPrice = null;
 let lastPressure = 50;
 
 async function fetchLiveData(){
   try{
-    const klRes = await fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=60');
-    if(!klRes.ok) throw new Error('klines fail');
+    const [klRes, structRes] = await Promise.all([
+      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=60'),
+      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1h&limit=200')
+    ]);
+    if(!klRes.ok || !structRes.ok) throw new Error('klines fail');
     const klines = await klRes.json();
+    const structKlines = await structRes.json();
+
     const closes = klines.map(k => parseFloat(k[4]));
     const price = closes[closes.length-1];
 
@@ -316,11 +358,22 @@ async function fetchLiveData(){
     const e12 = ema(closes.slice(-40), 12);
     const e20 = ema(closes.slice(-60), 20);
 
-    // bias: how far short EMA sits above/below long EMA, normalized
     const spread = (e6 - e20) / e20;
     const spread2 = (e12 - e20) / e20;
-    const rawBias = (spread * 0.6 + spread2 * 0.4) * 4000; // scale
+    const rawBias = (spread * 0.6 + spread2 * 0.4) * 4000;
     const pressure = Math.max(0, Math.min(100, Math.round(50 + rawBias)));
+
+    // Real structure: swing highs/lows from 1h candles, last ~8 days
+    const highs = structKlines.map(k => parseFloat(k[2]));
+    const lows = structKlines.map(k => parseFloat(k[3]));
+    const { pivotHighs, pivotLows } = findPivots(highs, lows, 3, 3);
+    const clusteredHighs = clusterLevels(pivotHighs, 0.0025);
+    const clusteredLows = clusterLevels(pivotLows, 0.0025);
+
+    structureLevels = {
+      resistances: clusteredHighs.filter(l => l > price).sort((a,b) => a-b),
+      supports: clusteredLows.filter(l => l < price).sort((a,b) => b-a)
+    };
 
     lastPrice = price;
     lastPressure = pressure;
@@ -331,7 +384,7 @@ async function fetchLiveData(){
     pressureLabel.textContent = pressure + ' / 100';
 
     liveDot.className = 'live-dot on';
-    liveStatus.textContent = 'Live · Binance ETHUSDT · 15м';
+    liveStatus.textContent = 'Live · Binance ETHUSDT · 15м + структура 1H';
     const now = new Date();
     liveTime.textContent = now.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
 
@@ -353,9 +406,8 @@ function runScan(){
   const price = lastPrice;
   const pressure = lastPressure;
   const isLong = pressure >= 50;
-  const strength = Math.abs(pressure - 50) / 50; // 0..1
-  const conf = Math.round(60 + strength * 35); // 60-95%
-
+  const strength = Math.abs(pressure - 50) / 50;
+  const conf = Math.round(60 + strength * 35);
   const baseMove = price * (0.006 + strength * 0.01);
 
   signalCard.className = 'signal-card ' + (isLong ? 'long' : 'short');
@@ -363,10 +415,22 @@ function runScan(){
   confPill.textContent = 'увер. ' + conf + '%';
   entryPrice.textContent = fmt(price);
 
-  const tp1 = isLong ? price + baseMove * 1 : price - baseMove * 1;
-  const tp2 = isLong ? price + baseMove * 2.2 : price - baseMove * 2.2;
-  const tp3 = isLong ? price + baseMove * 3.6 : price - baseMove * 3.6;
-  const sl  = isLong ? price - baseMove * 1.3 : price + baseMove * 1.3;
+  const { resistances, supports } = structureLevels;
+  let tp1, tp2, tp3, sl;
+
+  if(isLong){
+    // targets = nearest resistance levels above price, stop = just under nearest support below
+    tp1 = resistances[0] ?? price + baseMove * 1;
+    tp2 = resistances[1] ?? (resistances[0] ? resistances[0] + baseMove * 1.4 : price + baseMove * 2.2);
+    tp3 = resistances[2] ?? (resistances[1] ? resistances[1] + baseMove * 1.4 : price + baseMove * 3.6);
+    sl  = supports[0] ? supports[0] * 0.998 : price - baseMove * 1.3;
+  } else {
+    // targets = nearest support levels below price, stop = just above nearest resistance above
+    tp1 = supports[0] ?? price - baseMove * 1;
+    tp2 = supports[1] ?? (supports[0] ? supports[0] - baseMove * 1.4 : price - baseMove * 2.2);
+    tp3 = supports[2] ?? (supports[1] ? supports[1] - baseMove * 1.4 : price - baseMove * 3.6);
+    sl  = resistances[0] ? resistances[0] * 1.002 : price + baseMove * 1.3;
+  }
 
   document.getElementById('tp1').textContent = fmt(tp1);
   document.getElementById('tp2').textContent = fmt(tp2);
