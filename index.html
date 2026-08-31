@@ -27,7 +27,7 @@
     --long-dim: #0f4a38;
     --short: #ff4d6d;
     --short-dim: #4a1522;
-    --amber: #ffb340;
+    --neutral: #8a97a3;
     --text: #e8edf2;
     --text-dim: #7d8b96;
   }
@@ -46,7 +46,7 @@
   }
   .wrap{ max-width: 480px; margin: 0 auto; }
 
-  header{ margin-bottom: 22px; }
+  header{ margin-bottom: 18px; }
   .eyebrow{
     font-size: 12px; color: var(--text-dim); letter-spacing: 0.02em;
     display:flex; align-items:center; gap:8px; margin-bottom:6px;
@@ -55,7 +55,7 @@
   @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.35} }
   h1{
     font-family:'Space Grotesk', sans-serif; font-weight:700;
-    font-size: 30px; line-height:1.1; letter-spacing:-0.01em;
+    font-size: 26px; line-height:1.1; letter-spacing:-0.01em;
   }
   h1 span{ color: var(--long); }
 
@@ -63,42 +63,30 @@
     background: var(--panel);
     border: 1px solid var(--line);
     border-radius: 14px;
-    padding: 18px;
-    margin-bottom: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
   }
 
-  label{ display:block; font-size:12px; color: var(--text-dim); margin-bottom:8px; }
+  label{ display:block; font-size:11px; color: var(--text-dim); margin-bottom:6px; }
   .price-row{ display:flex; align-items:center; gap:10px; }
-  .price-row span{ font-family:'Space Grotesk',sans-serif; font-size:20px; color: var(--text-dim); }
-  input[type=number]{
-    flex:1;
-    background: var(--panel-2);
-    border: 1px solid var(--line);
-    color: var(--text);
-    font-family:'Space Grotesk', sans-serif; font-weight:700;
-    font-size: 26px;
-    padding: 10px 12px;
-    border-radius: 10px;
-    width: 100%;
-  }
-  input[type=number]:focus{ outline: none; border-color: var(--long); }
+  .price-row span{ font-family:'Space Grotesk',sans-serif; font-size:18px; color: var(--text-dim); }
 
-  .slider-block{ margin-top:16px; }
-  .slider-head{ display:flex; justify-content:space-between; font-size:12px; color:var(--text-dim); margin-bottom:8px;}
-  .slider-head b{ color: var(--text); font-size:13px; }
+  .slider-block{ margin-top:14px; }
+  .slider-head{ display:flex; justify-content:space-between; font-size:11px; color:var(--text-dim); margin-bottom:6px;}
+  .slider-head b{ color: var(--text); font-size:12px; }
   input[type=range]{
     width:100%; -webkit-appearance:none; height:6px; border-radius:4px;
     background: linear-gradient(90deg, var(--short) 0%, var(--line) 50%, var(--long) 100%);
   }
   input[type=range]::-webkit-slider-thumb{
-    -webkit-appearance:none; width:20px; height:20px; border-radius:50%;
+    -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
     background: var(--text); border:3px solid var(--bg); cursor:pointer; margin-top:-1px;
   }
   .scale{ display:flex; justify-content:space-between; font-size:10px; color:var(--text-dim); margin-top:4px; }
 
   .live-row{
-    display:flex; align-items:center; gap:8px; font-size:11.5px; color: var(--text-dim);
-    margin-bottom:14px;
+    display:flex; align-items:center; gap:8px; font-size:11px; color: var(--text-dim);
+    margin-bottom:12px;
   }
   .live-dot{ width:7px; height:7px; border-radius:50%; background:#555; flex-shrink:0; }
   .live-dot.on{ background: var(--long); box-shadow:0 0 8px var(--long); animation: pulse 1.6s infinite; }
@@ -111,27 +99,26 @@
     border: 1px solid var(--line);
     color: var(--text);
     font-family:'Space Grotesk', sans-serif; font-weight:700;
-    font-size: 26px;
+    font-size: 24px;
     padding: 10px 12px;
     border-radius: 10px;
     width: 100%;
   }
 
-  button.scan:disabled{ opacity:0.5; cursor:default; }
-
   button.scan{
-    width:100%; margin-top:18px; padding:16px;
+    width:100%; margin-top:16px; padding:15px;
     background: var(--long); color:#00291d; border:none; border-radius: 10px;
-    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:15px;
     letter-spacing:0.01em; cursor:pointer;
     transition: transform .08s ease;
   }
   button.scan:active{ transform: scale(0.98); }
+  button.scan:disabled{ opacity:0.5; cursor:default; }
 
   .install-hint{
     display:none; align-items:center; gap:10px;
     background: var(--panel-2); border:1px dashed var(--line); border-radius:12px;
-    padding:12px 14px; margin-bottom:14px; font-size:12.5px; color: var(--text-dim); line-height:1.5;
+    padding:12px 14px; margin-bottom:12px; font-size:12px; color: var(--text-dim); line-height:1.5;
   }
   .install-hint.show{ display:flex; }
   .install-hint button{
@@ -144,7 +131,7 @@
   .result.show{ display:block; }
 
   .signal-card{
-    border-radius:14px; padding:20px; margin-bottom:14px;
+    border-radius:14px; padding:18px; margin-bottom:12px;
     border:1px solid var(--line);
     position:relative; overflow:hidden;
   }
@@ -152,49 +139,50 @@
   .signal-card.short{ background: linear-gradient(160deg, var(--short-dim), var(--panel) 60%); border-color:#66222f; }
 
   .sig-top{ display:flex; justify-content:space-between; align-items:flex-start; }
-  .sig-label{ font-size:12px; color: var(--text-dim); }
+  .sig-label{ font-size:11px; color: var(--text-dim); }
   .sig-word{
-    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:44px; line-height:1;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:40px; line-height:1;
     margin-top:4px;
   }
   .long .sig-word{ color: var(--long); }
   .short .sig-word{ color: var(--short); }
 
   .conf-pill{
-    font-size:12px; padding:6px 10px; border-radius:20px; white-space:nowrap;
+    font-size:11px; padding:6px 10px; border-radius:20px; white-space:nowrap;
     background: rgba(255,255,255,0.06); border:1px solid var(--line);
   }
 
-  .entry-line{ margin-top:14px; font-size:13px; color:var(--text-dim); }
-  .entry-line b{ color: var(--text); font-size:15px; }
+  .entry-line{ margin-top:12px; font-size:12.5px; color:var(--text-dim); }
+  .entry-line b{ color: var(--text); font-size:14px; }
 
-  .levels{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:16px; }
-  .lvl-box{ background: rgba(0,0,0,0.25); border-radius:10px; padding:10px 12px; border:1px solid var(--line); }
-  .lvl-box .k{ font-size:11px; color:var(--text-dim); margin-bottom:4px; }
-  .lvl-box .v{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:17px; }
+  .levels{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; margin-top:14px; }
+  .lvl-box{ background: rgba(0,0,0,0.25); border-radius:10px; padding:9px 11px; border:1px solid var(--line); }
+  .lvl-box .k{ font-size:10.5px; color:var(--text-dim); margin-bottom:3px; }
+  .lvl-box .v{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:16px; }
   .lvl-box.tp .v{ color: var(--long); }
   .lvl-box.sl .v{ color: var(--short); }
 
-  .tf-panel{
-    background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px;
+  .lead-panel{
+    background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:13px;
   }
-  .tf-panel-head{ font-size:12px; color:var(--text-dim); margin-bottom:10px; }
-  .tf-row{ display:grid; grid-template-columns: repeat(3,1fr); gap:8px; }
-  .tf-chip{
-    border-radius:10px; padding:10px 8px; text-align:center; border:1px solid var(--line);
+  .lead-panel-head{ font-size:11px; color:var(--text-dim); margin-bottom:9px; }
+  .lead-row{ display:grid; grid-template-columns: repeat(3,1fr); gap:8px; }
+  .lead-chip{
+    border-radius:10px; padding:9px 6px; text-align:center; border:1px solid var(--line);
     background: rgba(0,0,0,0.25);
   }
-  .tf-chip .tf-name{ font-size:11px; color:var(--text-dim); margin-bottom:6px; }
-  .tf-chip .tf-val{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; }
-  .tf-chip.long .tf-val{ color: var(--long); }
-  .tf-chip.short .tf-val{ color: var(--short); }
+  .lead-chip .lead-name{ font-size:10px; color:var(--text-dim); margin-bottom:5px; }
+  .lead-chip .lead-val{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:12.5px; }
+  .lead-chip.long .lead-val{ color: var(--long); }
+  .lead-chip.short .lead-val{ color: var(--short); }
+  .lead-chip.neutral .lead-val{ color: var(--neutral); }
 
   .verdict{
-    margin-top:14px; font-size:13.5px; line-height:1.5; color: var(--text);
-    padding-top:14px; border-top:1px dashed var(--line);
+    margin-top:12px; font-size:12.5px; line-height:1.4; color: var(--text);
+    padding-top:12px; border-top:1px dashed var(--line);
   }
 
-  footer{ margin-top:20px; font-size:11px; color: var(--text-dim); line-height:1.6; text-align:center; }
+  footer{ margin-top:16px; font-size:10.5px; color: var(--text-dim); line-height:1.5; text-align:center; }
 </style>
 </head>
 <body>
@@ -206,7 +194,7 @@
   </header>
 
   <div class="install-hint" id="installHint">
-    <span id="installText">Установи как приложение — иконка появится на главном экране 📲</span>
+    <span id="installText">Установи как приложение 📲</span>
     <button id="installBtn">Установить</button>
   </div>
 
@@ -217,16 +205,16 @@
       <span class="live-time" id="liveTime"></span>
     </div>
 
-    <label>Текущая цена ETH (Binance, live)</label>
+    <label>Цена ETH (Binance, live)</label>
     <div class="price-row">
       <span>$</span>
       <div class="price-display" id="price">—</div>
     </div>
 
     <div class="slider-block">
-      <div class="slider-head"><span>Давление рынка (авто, по EMA 15м)</span><b id="pressureLabel">— / 100</b></div>
+      <div class="slider-head"><span>Давление рынка (авто)</span><b id="pressureLabel">— / 100</b></div>
       <input type="range" id="pressure" min="0" max="100" value="50" disabled>
-      <div class="scale"><span>Шорт-давление</span><span>Лонг-давление</span></div>
+      <div class="scale"><span>Шорт</span><span>Лонг</span></div>
     </div>
 
     <button class="scan" id="scanBtn" disabled>Загружаю данные…</button>
@@ -237,14 +225,13 @@
     <div class="signal-card" id="signalCard">
       <div class="sig-top">
         <div>
-          <div class="sig-label">Сигнал на вход прямо сейчас</div>
+          <div class="sig-label">Сигнал сейчас</div>
           <div class="sig-word" id="sigWord">LONG</div>
         </div>
         <div class="conf-pill" id="confPill">увер. 80%</div>
       </div>
 
-      <div class="entry-line">Вход по рынку: <b id="entryPrice">$2450.0</b> — без ожидания цены</div>
-      <div class="entry-line" style="margin-top:4px;">TP/SL — по свинг-уровням 1H за 8 дней, не формула</div>
+      <div class="entry-line">Вход по рынку: <b id="entryPrice">$2450.0</b></div>
 
       <div class="levels">
         <div class="lvl-box tp"><div class="k">TP1</div><div class="v" id="tp1">—</div></div>
@@ -256,14 +243,14 @@
       <div class="verdict" id="verdictText"></div>
     </div>
 
-    <div class="tf-panel">
-      <div class="tf-panel-head">Согласованность таймфреймов</div>
-      <div class="tf-row" id="tfRow"></div>
+    <div class="lead-panel">
+      <div class="lead-panel-head">Опережающие сигналы</div>
+      <div class="lead-row" id="leadRow"></div>
     </div>
 
   </div>
 
-  <footer>Не финсовет. Радар выдаёт мгновенное решение по введённым данным — риском и депозитом управляй сам 🫷</footer>
+  <footer>Не финсовет. Риском и депозитом управляй сам 🫷</footer>
 </div>
 
 <script>
@@ -282,17 +269,18 @@ const liveStatus = document.getElementById('liveStatus');
 const liveTime = document.getElementById('liveTime');
 
 const longPhrases = [
-  "Давление на стороне покупателей — забираем лонг прямо по рынку, без пересиживания входа. TP расставлены по ходу движения, SL держим жёстко 💪",
-  "Импульс наверх подтверждён — заходим в лонг сейчас же. Первая цель забирает часть позиции, дальше едем к следующим уровням 👉",
-  "Покупатели давят сильнее — вход в лонг по текущей цене, без ожидания отката. Двигаемся по уровням до срабатывания стопа или тейков 🫧"
+  "Импульс, объём и дивергенция сходятся в лонг 💪",
+  "Опережающие сигналы тянут вверх — забираем лонг 👉",
+  "Покупатели давят на опережение — лонг по рынку 🫧"
 ];
 const shortPhrases = [
-  "Давление на стороне продавцов — берём шорт по рынку прямо сейчас. Цели вниз расставлены по структуре, стоп фиксирует риск 👇",
-  "Импульс вниз сильнее — заходим в шорт без ожидания, вход по текущей цене. Едем по уровням до тейка или стопа 🫷",
-  "Продавцы контролируют движение — шорт по рынку сейчас же, TP и SL уже расставлены ниже/выше по структуре 👣"
+  "Импульс и объём разворачивают вниз — шорт 👇",
+  "Опережающие сигналы против роста — берём шорт 🫷",
+  "Продавцы давят на опережение — шорт по рынку 👣"
 ];
 
 function fmt(n){ return '$' + n.toFixed(1); }
+function clamp(x, lo, hi){ return Math.max(lo, Math.min(hi, x)); }
 
 function ema(values, period){
   const k = 2 / (period + 1);
@@ -303,56 +291,90 @@ function ema(values, period){
   return emaArr[emaArr.length-1];
 }
 
-// Find swing highs/lows: a bar is a pivot if it's the extreme within leftBars/rightBars around it
-function findPivots(highs, lows, leftBars, rightBars){
-  const pivotHighs = [];
-  const pivotLows = [];
-  for(let i=leftBars; i<highs.length-rightBars; i++){
-    let isHigh = true, isLow = true;
-    for(let j=i-leftBars; j<=i+rightBars; j++){
-      if(j===i) continue;
-      if(highs[j] >= highs[i]) isHigh = false;
-      if(lows[j] <= lows[i]) isLow = false;
-    }
-    if(isHigh) pivotHighs.push(highs[i]);
-    if(isLow) pivotLows.push(lows[i]);
-  }
-  return { pivotHighs, pivotLows };
-}
-
-// Merge levels that sit within thresholdPct of each other into a single averaged level
-function clusterLevels(levels, thresholdPct){
-  if(levels.length === 0) return [];
-  const sorted = [...levels].sort((a,b) => a-b);
-  const clusters = [[sorted[0]]];
-  for(let i=1; i<sorted.length; i++){
-    const last = clusters[clusters.length-1];
-    const avg = last.reduce((a,b)=>a+b,0) / last.length;
-    if(Math.abs(sorted[i]-avg)/avg < thresholdPct){
-      last.push(sorted[i]);
-    } else {
-      clusters.push([sorted[i]]);
-    }
-  }
-  return clusters.map(c => c.reduce((a,b)=>a+b,0)/c.length);
-}
-
-let structureLevels = { resistances: [], supports: [] };
-let tfBreakdown = { m15: null, h1: null, h4: null };
-
 function tfBias(closes, shortP, longP){
   const eShort = ema(closes.slice(-Math.max(shortP*3, 20)), shortP);
   const eLong = ema(closes.slice(-Math.max(longP*3, 40)), longP);
-  return (eShort - eLong) / eLong; // >0 long bias, <0 short bias
+  return (eShort - eLong) / eLong;
 }
 
+// RSI series (Wilder), returns array aligned with closes (nulls during warmup)
+function computeRSISeries(closes, period){
+  const gains = [], losses = [];
+  for(let i=1;i<closes.length;i++){
+    const diff = closes[i]-closes[i-1];
+    gains.push(Math.max(diff,0));
+    losses.push(Math.max(-diff,0));
+  }
+  const rsi = new Array(closes.length).fill(null);
+  if(gains.length < period) return rsi;
+  let avgGain = gains.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  let avgLoss = losses.slice(0,period).reduce((a,b)=>a+b,0)/period;
+  let rs = avgLoss===0 ? 100 : avgGain/avgLoss;
+  rsi[period] = 100 - (100/(1+rs));
+  for(let i=period;i<gains.length;i++){
+    avgGain = (avgGain*(period-1)+gains[i])/period;
+    avgLoss = (avgLoss*(period-1)+losses[i])/period;
+    rs = avgLoss===0 ? 100 : avgGain/avgLoss;
+    rsi[i+1] = 100 - (100/(1+rs));
+  }
+  return rsi;
+}
+
+// pivot indices in a 1D series
+function findPivotIdx(values, leftBars, rightBars, type){
+  const idxs = [];
+  for(let i=leftBars; i<values.length-rightBars; i++){
+    let ok = true;
+    for(let j=i-leftBars; j<=i+rightBars; j++){
+      if(j===i) continue;
+      if(type==='high' && values[j] >= values[i]) ok = false;
+      if(type==='low' && values[j] <= values[i]) ok = false;
+    }
+    if(ok) idxs.push(i);
+  }
+  return idxs;
+}
+
+// Bearish/bullish divergence between price closes and RSI series
+function detectDivergence(closes, rsiSeries){
+  const highIdx = findPivotIdx(closes, 2, 2, 'high');
+  const lowIdx = findPivotIdx(closes, 2, 2, 'low');
+
+  if(highIdx.length >= 2){
+    const i1 = highIdx[highIdx.length-2], i2 = highIdx[highIdx.length-1];
+    if(rsiSeries[i1] !== null && rsiSeries[i2] !== null){
+      if(closes[i2] > closes[i1] && rsiSeries[i2] < rsiSeries[i1]) return -1; // bearish divergence
+    }
+  }
+  if(lowIdx.length >= 2){
+    const i1 = lowIdx[lowIdx.length-2], i2 = lowIdx[lowIdx.length-1];
+    if(rsiSeries[i1] !== null && rsiSeries[i2] !== null){
+      if(closes[i2] < closes[i1] && rsiSeries[i2] > rsiSeries[i1]) return 1; // bullish divergence
+    }
+  }
+  return 0;
+}
+
+function computeATR(highs, lows, closes, period){
+  const trs = [];
+  for(let i=1;i<highs.length;i++){
+    const tr = Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1]));
+    trs.push(tr);
+  }
+  const recent = trs.slice(-period);
+  return recent.reduce((a,b)=>a+b,0)/recent.length;
+}
+
+let structureLevels = { resistances: [], supports: [] };
+let leadingSignals = { momentum: 'neutral', divergence: 'neutral', volume: 'neutral' };
+let atr1h = 0;
 let lastPrice = null;
 let lastPressure = 50;
 
 async function fetchLiveData(){
   try{
     const [klRes, structRes, h4Res] = await Promise.all([
-      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=60'),
+      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=80'),
       fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1h&limit=200'),
       fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=4h&limit=100')
     ]);
@@ -366,24 +388,69 @@ async function fetchLiveData(){
     const closes4h = h4Klines.map(k => parseFloat(k[4]));
     const price = closes15[closes15.length-1];
 
+    // --- lagging trend context (kept as secondary confirmation, low weight) ---
     const bias15 = tfBias(closes15, 6, 20);
     const bias1h = tfBias(closes1h, 6, 20);
     const bias4h = tfBias(closes4h, 6, 20);
+    const trendScore = clamp((bias15*0.2 + bias1h*0.35 + bias4h*0.45) * 3000, -1, 1);
 
-    // higher timeframes weighted more — more reliable for predicting real direction than noisy 15m alone
-    const weighted = bias15 * 0.2 + bias1h * 0.35 + bias4h * 0.45;
-    const pressure = Math.max(0, Math.min(100, Math.round(50 + weighted * 4000)));
+    // --- leading signal 1: momentum / rate of change (15m) ---
+    const roc = (closes15[closes15.length-1] - closes15[closes15.length-11]) / closes15[closes15.length-11];
+    const momentumScore = clamp(roc * 3000, -1, 1);
 
-    tfBreakdown = {
-      m15: bias15 >= 0 ? 'long' : 'short',
-      h1: bias1h >= 0 ? 'long' : 'short',
-      h4: bias4h >= 0 ? 'long' : 'short'
+    // --- leading signal 2: RSI divergence (15m) ---
+    const rsiSeries = computeRSISeries(closes15, 14);
+    const divergenceRaw = detectDivergence(closes15, rsiSeries); // -1, 0, 1
+    const divergenceScore = divergenceRaw;
+
+    // --- leading signal 3: taker buy/sell volume imbalance (15m, last 20 candles) ---
+    const recentK = klines.slice(-20);
+    const totalVol = recentK.reduce((s,k) => s + parseFloat(k[5]), 0);
+    const buyVol = recentK.reduce((s,k) => s + parseFloat(k[9]), 0);
+    const volRatio = totalVol > 0 ? (buyVol/totalVol - 0.5) : 0;
+    const volumeScore = clamp(volRatio * 6, -1, 1);
+
+    // combine — leading signals weighted heavier than lagging EMA trend
+    const total = trendScore*0.2 + momentumScore*0.3 + divergenceScore*0.3 + volumeScore*0.2;
+    const pressure = Math.max(0, Math.min(100, Math.round(50 + total*50)));
+
+    leadingSignals = {
+      momentum: momentumScore > 0.08 ? 'long' : momentumScore < -0.08 ? 'short' : 'neutral',
+      divergence: divergenceRaw === 1 ? 'long' : divergenceRaw === -1 ? 'short' : 'neutral',
+      volume: volumeScore > 0.12 ? 'long' : volumeScore < -0.12 ? 'short' : 'neutral'
     };
 
-    // Real structure: swing highs/lows from 1h candles, last ~8 days
-    const highs = structKlines.map(k => parseFloat(k[2]));
-    const lows = structKlines.map(k => parseFloat(k[3]));
-    const { pivotHighs, pivotLows } = findPivots(highs, lows, 3, 3);
+    // --- real structure: swing highs/lows from 1h candles, last ~8 days ---
+    const highs1h = structKlines.map(k => parseFloat(k[2]));
+    const lows1h = structKlines.map(k => parseFloat(k[3]));
+    const { pivotHighs, pivotLows } = (function(){
+      const ph = [], pl = [];
+      for(let i=3; i<highs1h.length-3; i++){
+        let isHigh = true, isLow = true;
+        for(let j=i-3; j<=i+3; j++){
+          if(j===i) continue;
+          if(highs1h[j] >= highs1h[i]) isHigh = false;
+          if(lows1h[j] <= lows1h[i]) isLow = false;
+        }
+        if(isHigh) ph.push(highs1h[i]);
+        if(isLow) pl.push(lows1h[i]);
+      }
+      return { pivotHighs: ph, pivotLows: pl };
+    })();
+
+    function clusterLevels(levels, thresholdPct){
+      if(levels.length === 0) return [];
+      const sorted = [...levels].sort((a,b) => a-b);
+      const clusters = [[sorted[0]]];
+      for(let i=1; i<sorted.length; i++){
+        const last = clusters[clusters.length-1];
+        const avg = last.reduce((a,b)=>a+b,0) / last.length;
+        if(Math.abs(sorted[i]-avg)/avg < thresholdPct){ last.push(sorted[i]); }
+        else { clusters.push([sorted[i]]); }
+      }
+      return clusters.map(c => c.reduce((a,b)=>a+b,0)/c.length);
+    }
+
     const clusteredHighs = clusterLevels(pivotHighs, 0.0025);
     const clusteredLows = clusterLevels(pivotLows, 0.0025);
 
@@ -391,6 +458,9 @@ async function fetchLiveData(){
       resistances: clusteredHighs.filter(l => l > price).sort((a,b) => a-b),
       supports: clusteredLows.filter(l => l < price).sort((a,b) => b-a)
     };
+
+    // ATR(1h,14) drives minimum TP/SL spacing so TP1 isn't glued to entry
+    atr1h = computeATR(highs1h, lows1h, closes1h, 14);
 
     lastPrice = price;
     lastPressure = pressure;
@@ -401,7 +471,7 @@ async function fetchLiveData(){
     pressureLabel.textContent = pressure + ' / 100';
 
     liveDot.className = 'live-dot on';
-    liveStatus.textContent = 'Live · Binance ETHUSDT · 15м / 1H / 4H';
+    liveStatus.textContent = 'Live · Binance ETH';
     const now = new Date();
     liveTime.textContent = now.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
 
@@ -411,11 +481,22 @@ async function fetchLiveData(){
     return true;
   }catch(err){
     liveDot.className = 'live-dot off';
-    liveStatus.textContent = 'Нет связи с биржей — проверь интернет';
+    liveStatus.textContent = 'Нет связи с биржей';
     scanBtn.disabled = true;
     scanBtn.textContent = 'Нет данных';
     return false;
   }
+}
+
+function pickTargets(levels, price, minGap1, minGap2, minGap3, dirSign){
+  // dirSign: +1 for long (levels above price), -1 for short (levels below price)
+  const far = levels.filter(l => Math.abs(l-price) >= minGap1);
+  const tp1 = far[0] ?? (price + dirSign*minGap1);
+  let tp2 = far.find(l => Math.abs(l-price) >= minGap2 && l !== tp1);
+  if(tp2 === undefined) tp2 = tp1 + dirSign*minGap2*0.6;
+  let tp3 = far.find(l => Math.abs(l-price) >= minGap3 && l !== tp1 && l !== tp2);
+  if(tp3 === undefined) tp3 = tp2 + dirSign*minGap3*0.6;
+  return [tp1, tp2, tp3];
 }
 
 function runScan(){
@@ -425,28 +506,29 @@ function runScan(){
   const isLong = pressure >= 50;
   const strength = Math.abs(pressure - 50) / 50;
   const conf = Math.round(60 + strength * 35);
-  const baseMove = price * (0.006 + strength * 0.01);
 
   signalCard.className = 'signal-card ' + (isLong ? 'long' : 'short');
   sigWord.textContent = isLong ? 'LONG' : 'SHORT';
   confPill.textContent = 'увер. ' + conf + '%';
   entryPrice.textContent = fmt(price);
 
+  // ATR-based minimum spacing so TP1 never sits glued to entry
+  const minGap1 = atr1h * 0.6;
+  const minGap2 = atr1h * 1.3;
+  const minGap3 = atr1h * 2.2;
+  const slGap   = atr1h * 0.7;
+
   const { resistances, supports } = structureLevels;
   let tp1, tp2, tp3, sl;
 
   if(isLong){
-    // targets = nearest resistance levels above price, stop = just under nearest support below
-    tp1 = resistances[0] ?? price + baseMove * 1;
-    tp2 = resistances[1] ?? (resistances[0] ? resistances[0] + baseMove * 1.4 : price + baseMove * 2.2);
-    tp3 = resistances[2] ?? (resistances[1] ? resistances[1] + baseMove * 1.4 : price + baseMove * 3.6);
-    sl  = supports[0] ? supports[0] * 0.998 : price - baseMove * 1.3;
+    [tp1, tp2, tp3] = pickTargets(resistances, price, minGap1, minGap2, minGap3, 1);
+    const validSupports = supports.filter(l => Math.abs(l-price) >= slGap);
+    sl = validSupports[0] ? validSupports[0] * 0.998 : price - slGap;
   } else {
-    // targets = nearest support levels below price, stop = just above nearest resistance above
-    tp1 = supports[0] ?? price - baseMove * 1;
-    tp2 = supports[1] ?? (supports[0] ? supports[0] - baseMove * 1.4 : price - baseMove * 2.2);
-    tp3 = supports[2] ?? (supports[1] ? supports[1] - baseMove * 1.4 : price - baseMove * 3.6);
-    sl  = resistances[0] ? resistances[0] * 1.002 : price + baseMove * 1.3;
+    [tp1, tp2, tp3] = pickTargets(supports, price, minGap1, minGap2, minGap3, -1);
+    const validResistances = resistances.filter(l => Math.abs(l-price) >= slGap);
+    sl = validResistances[0] ? validResistances[0] * 1.002 : price + slGap;
   }
 
   document.getElementById('tp1').textContent = fmt(tp1);
@@ -457,15 +539,16 @@ function runScan(){
   const phrases = isLong ? longPhrases : shortPhrases;
   verdictText.textContent = phrases[Math.floor(Math.random() * phrases.length)];
 
-  const tfNames = { m15: '15М', h1: '1Ч', h4: '4Ч' };
-  const tfRow = document.getElementById('tfRow');
-  tfRow.innerHTML = '';
-  Object.keys(tfNames).forEach(key => {
-    const dir = tfBreakdown[key];
+  const leadNames = { momentum: 'Momentum', divergence: 'Дивергенция', volume: 'Объём' };
+  const leadRow = document.getElementById('leadRow');
+  leadRow.innerHTML = '';
+  Object.keys(leadNames).forEach(key => {
+    const dir = leadingSignals[key];
     const chip = document.createElement('div');
-    chip.className = 'tf-chip ' + (dir || '');
-    chip.innerHTML = `<div class="tf-name">${tfNames[key]}</div><div class="tf-val">${dir === 'long' ? 'LONG' : 'SHORT'}</div>`;
-    tfRow.appendChild(chip);
+    chip.className = 'lead-chip ' + dir;
+    const label = dir === 'long' ? 'LONG' : dir === 'short' ? 'SHORT' : 'НЕЙТР';
+    chip.innerHTML = `<div class="lead-name">${leadNames[key]}</div><div class="lead-val">${label}</div>`;
+    leadRow.appendChild(chip);
   });
 
   result.classList.add('show');
@@ -474,7 +557,7 @@ function runScan(){
 scanBtn.addEventListener('click', runScan);
 
 fetchLiveData();
-setInterval(fetchLiveData, 20000); // refresh live price/pressure every 20s
+setInterval(fetchLiveData, 20000);
 
 /* ---- PWA install prompt ---- */
 let deferredPrompt = null;
@@ -496,11 +579,10 @@ installBtn.addEventListener('click', async () => {
   installHint.classList.remove('show');
 });
 
-// iOS Safari has no beforeinstallprompt — show manual instructions instead
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
 if (isIOS && !isStandalone) {
-  installText.textContent = 'Установи как приложение: нажми "Поделиться" внизу браузера → "На экран Домой" 📲';
+  installText.textContent = 'Установи: "Поделиться" → "На экран Домой" 📲';
   installBtn.style.display = 'none';
   installHint.classList.add('show');
 }
