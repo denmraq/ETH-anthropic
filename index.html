@@ -175,12 +175,19 @@
   .lvl-box.tp .v{ color: var(--long); }
   .lvl-box.sl .v{ color: var(--short); }
 
-  .meters{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .meter-box{ background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; }
-  .meter-box .mk{ font-size:12px; color:var(--text-dim); margin-bottom:8px; display:flex; justify-content:space-between; }
-  .meter-box .mk b{ color:var(--amber); font-family:'Space Grotesk',sans-serif; font-size:16px; }
-  .bar-bg{ height:8px; border-radius:5px; background: var(--panel-2); overflow:hidden; }
-  .bar-fill{ height:100%; border-radius:5px; background: linear-gradient(90deg, var(--amber), #ff7a3d); }
+  .tf-panel{
+    background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px;
+  }
+  .tf-panel-head{ font-size:12px; color:var(--text-dim); margin-bottom:10px; }
+  .tf-row{ display:grid; grid-template-columns: repeat(3,1fr); gap:8px; }
+  .tf-chip{
+    border-radius:10px; padding:10px 8px; text-align:center; border:1px solid var(--line);
+    background: rgba(0,0,0,0.25);
+  }
+  .tf-chip .tf-name{ font-size:11px; color:var(--text-dim); margin-bottom:6px; }
+  .tf-chip .tf-val{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:14px; }
+  .tf-chip.long .tf-val{ color: var(--long); }
+  .tf-chip.short .tf-val{ color: var(--short); }
 
   .verdict{
     margin-top:14px; font-size:13.5px; line-height:1.5; color: var(--text);
@@ -249,15 +256,9 @@
       <div class="verdict" id="verdictText"></div>
     </div>
 
-    <div class="meters">
-      <div class="meter-box">
-        <div class="mk">Оптимизм <b>80</b></div>
-        <div class="bar-bg"><div class="bar-fill" style="width:80%"></div></div>
-      </div>
-      <div class="meter-box">
-        <div class="mk">Азарт <b>77</b></div>
-        <div class="bar-bg"><div class="bar-fill" style="width:77%"></div></div>
-      </div>
+    <div class="tf-panel">
+      <div class="tf-panel-head">Согласованность таймфреймов</div>
+      <div class="tf-row" id="tfRow"></div>
     </div>
 
   </div>
@@ -337,31 +338,47 @@ function clusterLevels(levels, thresholdPct){
 }
 
 let structureLevels = { resistances: [], supports: [] };
+let tfBreakdown = { m15: null, h1: null, h4: null };
+
+function tfBias(closes, shortP, longP){
+  const eShort = ema(closes.slice(-Math.max(shortP*3, 20)), shortP);
+  const eLong = ema(closes.slice(-Math.max(longP*3, 40)), longP);
+  return (eShort - eLong) / eLong; // >0 long bias, <0 short bias
+}
 
 let lastPrice = null;
 let lastPressure = 50;
 
 async function fetchLiveData(){
   try{
-    const [klRes, structRes] = await Promise.all([
+    const [klRes, structRes, h4Res] = await Promise.all([
       fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=60'),
-      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1h&limit=200')
+      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1h&limit=200'),
+      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=4h&limit=100')
     ]);
-    if(!klRes.ok || !structRes.ok) throw new Error('klines fail');
+    if(!klRes.ok || !structRes.ok || !h4Res.ok) throw new Error('klines fail');
     const klines = await klRes.json();
     const structKlines = await structRes.json();
+    const h4Klines = await h4Res.json();
 
-    const closes = klines.map(k => parseFloat(k[4]));
-    const price = closes[closes.length-1];
+    const closes15 = klines.map(k => parseFloat(k[4]));
+    const closes1h = structKlines.map(k => parseFloat(k[4]));
+    const closes4h = h4Klines.map(k => parseFloat(k[4]));
+    const price = closes15[closes15.length-1];
 
-    const e6 = ema(closes.slice(-30), 6);
-    const e12 = ema(closes.slice(-40), 12);
-    const e20 = ema(closes.slice(-60), 20);
+    const bias15 = tfBias(closes15, 6, 20);
+    const bias1h = tfBias(closes1h, 6, 20);
+    const bias4h = tfBias(closes4h, 6, 20);
 
-    const spread = (e6 - e20) / e20;
-    const spread2 = (e12 - e20) / e20;
-    const rawBias = (spread * 0.6 + spread2 * 0.4) * 4000;
-    const pressure = Math.max(0, Math.min(100, Math.round(50 + rawBias)));
+    // higher timeframes weighted more — more reliable for predicting real direction than noisy 15m alone
+    const weighted = bias15 * 0.2 + bias1h * 0.35 + bias4h * 0.45;
+    const pressure = Math.max(0, Math.min(100, Math.round(50 + weighted * 4000)));
+
+    tfBreakdown = {
+      m15: bias15 >= 0 ? 'long' : 'short',
+      h1: bias1h >= 0 ? 'long' : 'short',
+      h4: bias4h >= 0 ? 'long' : 'short'
+    };
 
     // Real structure: swing highs/lows from 1h candles, last ~8 days
     const highs = structKlines.map(k => parseFloat(k[2]));
@@ -384,7 +401,7 @@ async function fetchLiveData(){
     pressureLabel.textContent = pressure + ' / 100';
 
     liveDot.className = 'live-dot on';
-    liveStatus.textContent = 'Live · Binance ETHUSDT · 15м + структура 1H';
+    liveStatus.textContent = 'Live · Binance ETHUSDT · 15м / 1H / 4H';
     const now = new Date();
     liveTime.textContent = now.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
 
@@ -439,6 +456,17 @@ function runScan(){
 
   const phrases = isLong ? longPhrases : shortPhrases;
   verdictText.textContent = phrases[Math.floor(Math.random() * phrases.length)];
+
+  const tfNames = { m15: '15М', h1: '1Ч', h4: '4Ч' };
+  const tfRow = document.getElementById('tfRow');
+  tfRow.innerHTML = '';
+  Object.keys(tfNames).forEach(key => {
+    const dir = tfBreakdown[key];
+    const chip = document.createElement('div');
+    chip.className = 'tf-chip ' + (dir || '');
+    chip.innerHTML = `<div class="tf-name">${tfNames[key]}</div><div class="tf-val">${dir === 'long' ? 'LONG' : 'SHORT'}</div>`;
+    tfRow.appendChild(chip);
+  });
 
   result.classList.add('show');
 }
