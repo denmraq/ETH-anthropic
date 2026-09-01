@@ -132,6 +132,21 @@
   .time-note{ margin-top:12px; font-size:12px; color: var(--text-dim); padding-top:12px; border-top:1px dashed var(--line); }
   .time-note b{ color: var(--amber); }
 
+  .simple-toggle-row{ display:flex; align-items:center; gap:9px; margin-top:11px; }
+  .simple-toggle-label{ font-size:10.5px; color:var(--text-dim); line-height:1.4; }
+  .switch{ position:relative; display:inline-block; width:36px; height:20px; flex-shrink:0; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .switch-slider{ position:absolute; cursor:pointer; inset:0; background:var(--panel-2); border:1px solid var(--line); border-radius:20px; transition:.15s; }
+  .switch-slider::before{ content:""; position:absolute; height:14px; width:14px; left:2px; top:2px; background:var(--text-dim); border-radius:50%; transition:.15s; }
+  .switch input:checked + .switch-slider{ background:var(--long-dim); border-color:var(--long); }
+  .switch input:checked + .switch-slider::before{ transform:translateX(16px); background:var(--long); }
+
+  .simple-verdict{ display:none; margin-top:14px; padding:13px 14px; border-radius:11px; font-size:13px; line-height:1.6; border:1px solid var(--line); background:rgba(0,0,0,0.25); }
+  .simple-verdict.show{ display:block; }
+  .simple-verdict.long{ border-color:#175943; color:var(--text); }
+  .simple-verdict.short{ border-color:#66222f; color:var(--text); }
+  .simple-verdict.neutral{ border-color:var(--line); color:var(--text-dim); }
+
   footer{ margin-top:14px; font-size:10px; color: var(--text-dim); line-height:1.5; text-align:center; }
 </style>
 </head>
@@ -160,6 +175,13 @@
       <div class="price-display" id="price">—</div>
     </div>
     <button class="scan" id="scanBtn" disabled>Загружаю данные…</button>
+    <div class="simple-toggle-row">
+      <label class="switch">
+        <input type="checkbox" id="simpleToggle">
+        <span class="switch-slider"></span>
+      </label>
+      <span class="simple-toggle-label">Simple mode — только VWAP + funding, без зоопарка блоков</span>
+    </div>
   </div>
 
   <div class="result" id="result">
@@ -171,6 +193,7 @@
       </div>
 
       <div class="block-row" id="blockRow"></div>
+      <div class="simple-verdict" id="simpleVerdict"></div>
 
       <div class="entry-block">
         <div class="row"><span>Вход</span><b id="entryState">—</b></div>
@@ -206,6 +229,21 @@ const liveTime = document.getElementById('liveTime');
 
 function fmt(n){ return '$' + n.toFixed(1); }
 function clamp(x, lo, hi){ return Math.max(lo, Math.min(hi, x)); }
+
+// Plain-language verdict from just two independent facts: is price cheap/expensive
+// relative to today's volume-weighted average price, and is one side of the market
+// (longs or shorts) visibly overloaded per the funding rate.
+function buildSimpleVerdict(vwapDeviation, fundingRate){
+  const cheap = vwapDeviation < -0.003, expensive = vwapDeviation > 0.003;
+  const longCrowded = fundingRate > 0.0003, shortCrowded = fundingRate < -0.0003;
+  if(cheap && shortCrowded) return { text: 'ETH дешевле дневного VWAP, и шорты явно перегружены по funding — короткий сквиз сейчас вероятнее, чем продолжение падения.', cls:'long' };
+  if(expensive && longCrowded) return { text: 'ETH дороже дневного VWAP, и лонги явно перегружены по funding — коррекция сейчас вероятнее, чем продолжение роста.', cls:'short' };
+  if(cheap) return { text: 'ETH торгуется ниже дневного VWAP — просто дешёвая для сегодняшнего дня зона, явного перекоса в позициях нет.', cls:'neutral' };
+  if(expensive) return { text: 'ETH торгуется выше дневного VWAP — просто дорогая для сегодняшнего дня зона, явного перекоса в позициях нет.', cls:'neutral' };
+  if(longCrowded) return { text: 'Цена у дневного VWAP, но лонги явно перегружены по funding — риск смещён в сторону лонгов, агрессивно покупать здесь рискованно.', cls:'short' };
+  if(shortCrowded) return { text: 'Цена у дневного VWAP, но шорты явно перегружены по funding — риск смещён в сторону шортов, агрессивно продавать здесь рискованно.', cls:'long' };
+  return { text: 'Ничего экстремального: цена у дневного VWAP, funding нейтрален, позиционирование сбалансировано.', cls:'neutral' };
+}
 
 function ema(values, period){
   const k = 2 / (period + 1);
@@ -545,11 +583,29 @@ async function fetchLiveData(){
       }
     }
 
+    /* ---------- SIMPLE MODE (VWAP deviation + funding overload, in plain language) ---------- */
+    const todayStartMs = new Date().setUTCHours(0,0,0,0);
+    const todayKlines1h = structKlines.filter(k => k[0] >= todayStartMs);
+    let vwap = price;
+    if(todayKlines1h.length){
+      let pvSum = 0, vSum = 0;
+      todayKlines1h.forEach(k => {
+        const h=parseFloat(k[2]), l=parseFloat(k[3]), c=parseFloat(k[4]), v=parseFloat(k[5]);
+        const typical = (h+l+c)/3;
+        pvSum += typical*v; vSum += v;
+      });
+      if(vSum > 0) vwap = pvSum/vSum;
+    }
+    const vwapDeviation = (price-vwap)/vwap;
+    const dayFundingRate = (funding && funding.lastFundingRate) ? parseFloat(funding.lastFundingRate) : 0;
+    const simpleVerdict = buildSimpleVerdict(vwapDeviation, dayFundingRate);
+
     state = {
       price, pressure, isLong,
       blocks: { trend: trendScore, structure: structureScore, momentum: momentumScore, flow: flowScore, liquidity: liquidityScore, liquidations: liqScore },
       resistances, supports, atr1h,
-      entryState, entryZone, timeLabel
+      entryState, entryZone, timeLabel,
+      vwap, vwapDeviation, dayFundingRate, simpleVerdict
     };
 
     priceDisplay.textContent = price.toFixed(2);
@@ -574,16 +630,7 @@ function labelFor(score){
   return 'neutral';
 }
 
-function runScan(){
-  if(!state) return;
-  const { price, pressure, isLong, blocks, resistances, supports, atr1h, entryState, entryZone, timeLabel } = state;
-  const strength = Math.abs(pressure-50)/50;
-  const scorePct = Math.round(60 + strength*35);
-
-  signalCard.className = 'signal-card ' + (isLong ? 'long' : 'short');
-  sigWord.textContent = isLong ? 'LONG' : 'SHORT';
-  sigScore.textContent = scorePct + '%';
-
+function renderBlockRow(blocks){
   const blockNames = { trend:'Trend', structure:'Structure', momentum:'Momentum', flow:'Flow', liquidity:'Liquidity', liquidations:'Liquid.' };
   const blockRow = document.getElementById('blockRow');
   blockRow.innerHTML = '';
@@ -595,6 +642,31 @@ function runScan(){
     chip.innerHTML = `<div class="bk-name">${blockNames[key]}</div><div class="bk-val">${val}</div>`;
     blockRow.appendChild(chip);
   });
+}
+
+function runScan(){
+  if(!state) return;
+  const { price, pressure, isLong, blocks, resistances, supports, atr1h, entryState, entryZone, timeLabel, simpleVerdict } = state;
+  const strength = Math.abs(pressure-50)/50;
+  const scorePct = Math.round(60 + strength*35);
+
+  signalCard.className = 'signal-card ' + (isLong ? 'long' : 'short');
+  sigWord.textContent = isLong ? 'LONG' : 'SHORT';
+  sigScore.textContent = scorePct + '%';
+
+  const blockRow = document.getElementById('blockRow');
+  const simpleBox = document.getElementById('simpleVerdict');
+  const simpleOn = document.getElementById('simpleToggle').checked;
+
+  if(simpleOn){
+    blockRow.classList.remove('show'); blockRow.style.display = 'none';
+    simpleBox.className = 'simple-verdict show ' + simpleVerdict.cls;
+    simpleBox.textContent = simpleVerdict.text;
+  } else {
+    simpleBox.classList.remove('show'); simpleBox.style.display = 'none';
+    blockRow.style.display = '';
+    renderBlockRow(blocks);
+  }
 
   document.getElementById('entryState').textContent = entryState.text;
   document.getElementById('entryState').className = entryState.cls;
@@ -624,6 +696,16 @@ function runScan(){
 }
 
 scanBtn.addEventListener('click', runScan);
+
+const simpleToggle = document.getElementById('simpleToggle');
+try{
+  simpleToggle.checked = localStorage.getItem('ethradar_simple') === '1';
+}catch(e){}
+simpleToggle.addEventListener('change', () => {
+  try{ localStorage.setItem('ethradar_simple', simpleToggle.checked ? '1' : '0'); }catch(e){}
+  if(state) runScan();
+});
+
 connectStreams();
 fetchLiveData();
 setInterval(fetchLiveData, 20000);
