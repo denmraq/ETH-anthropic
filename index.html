@@ -303,6 +303,86 @@ function pickTargets(levels, price, g1, g2, g3, dir){
 
 let state = null; // holds everything computed on last fetch
 
+/* ---------- REAL-TIME ORDER FLOW (public Binance WebSockets, no API key) ---------- */
+let wsSpot = null, wsFutures = null;
+let cvdWindow = [];   // live aggTrade ticks: {t, delta, vol} — delta>0 = buyer aggressor
+let depthBook = { bids: [], asks: [] }; // live top-20 order book snapshot
+let liqWindow = [];   // live forced-liquidation events: {t, side, notional}
+const CVD_WINDOW_MS = 10 * 60 * 1000;  // rolling tape window for CVD
+const LIQ_WINDOW_MS = 60 * 60 * 1000;  // rolling window for liquidation pressure
+
+function pruneWindow(arr, ms){
+  const cutoff = Date.now() - ms;
+  while(arr.length && arr[0].t < cutoff) arr.shift();
+}
+
+function connectStreams(){
+  // Spot tape (aggTrade) + top-of-book depth — real order flow, updates every trade/second.
+  try{
+    wsSpot = new WebSocket('wss://stream.binance.com:9443/stream?streams=ethusdt@aggTrade/ethusdt@depth20@1000ms');
+    wsSpot.onmessage = (ev) => {
+      let msg; try{ msg = JSON.parse(ev.data); }catch(e){ return; }
+      if(msg.stream === 'ethusdt@aggTrade'){
+        const d = msg.data;
+        const qty = parseFloat(d.q);
+        const delta = d.m ? -qty : qty; // m:true -> buyer is maker -> the aggressor sold
+        cvdWindow.push({ t: d.T || Date.now(), delta, vol: qty });
+        pruneWindow(cvdWindow, CVD_WINDOW_MS);
+      } else if(msg.stream === 'ethusdt@depth20@1000ms'){
+        const d = msg.data;
+        depthBook.bids = d.bids.map(b => [parseFloat(b[0]), parseFloat(b[1])]);
+        depthBook.asks = d.asks.map(a => [parseFloat(a[0]), parseFloat(a[1])]);
+      }
+    };
+    wsSpot.onclose = () => { setTimeout(connectStreams, 4000); };
+    wsSpot.onerror = () => { try{ wsSpot.close(); }catch(e){} };
+  }catch(e){}
+
+  // Futures forced-liquidation feed — real liquidations, no key required.
+  try{
+    wsFutures = new WebSocket('wss://fstream.binance.com/ws/ethusdt@forceOrder');
+    wsFutures.onmessage = (ev) => {
+      let msg; try{ msg = JSON.parse(ev.data); }catch(e){ return; }
+      const o = msg.o;
+      if(!o) return;
+      const notional = parseFloat(o.q) * parseFloat(o.ap || o.p);
+      liqWindow.push({ t: o.T || Date.now(), side: o.S, notional });
+      pruneWindow(liqWindow, LIQ_WINDOW_MS);
+    };
+    wsFutures.onclose = () => { setTimeout(connectStreams, 6000); };
+    wsFutures.onerror = () => { try{ wsFutures.close(); }catch(e){} };
+  }catch(e){}
+}
+
+// Net taker buy/sell pressure from the live tape. Returns null until enough ticks have arrived.
+function realCVDScore(){
+  pruneWindow(cvdWindow, CVD_WINDOW_MS);
+  if(cvdWindow.length < 20) return null;
+  const net = cvdWindow.reduce((s,x) => s + x.delta, 0);
+  const vol = cvdWindow.reduce((s,x) => s + x.vol, 0) || 1;
+  return clamp(net / (vol * 0.35), -1, 1);
+}
+
+// Resting bid vs ask size in the live top-20 order book. Returns null until the book has loaded.
+function bookImbalanceScore(){
+  if(!depthBook.bids.length || !depthBook.asks.length) return null;
+  const bidQty = depthBook.bids.reduce((s,b) => s + b[1], 0);
+  const askQty = depthBook.asks.reduce((s,a) => s + a[1], 0);
+  return clamp((bidQty - askQty) / (bidQty + askQty || 1), -1, 1);
+}
+
+// Net forced-liquidation pressure. BUY-side liquidations = shorts squeezed (bullish);
+// SELL-side = longs rekt (bearish). Requires some minimum notional to avoid noise.
+function liquidationPressureScore(){
+  pruneWindow(liqWindow, LIQ_WINDOW_MS);
+  if(!liqWindow.length) return 0;
+  let buyLiq = 0, sellLiq = 0;
+  liqWindow.forEach(x => { if(x.side === 'BUY') buyLiq += x.notional; else sellLiq += x.notional; });
+  const total = buyLiq + sellLiq;
+  if(total < 5000) return 0;
+  return clamp((buyLiq - sellLiq) / total, -1, 1);
+}
+
 async function fetchLiveData(){
   try{
     const [klRes, structRes, h4Res, oiRes, fundRes] = await Promise.all([
@@ -374,9 +454,9 @@ async function fetchLiveData(){
     const divergence = detectDivergence(closes15, rsiSeries);
     const momentumScore = clamp(momentumRoc*0.45 + divergence*0.4 + rsiCentered*0.15, -1, 1);
 
-    /* ---------- FLOW (OI + price, CVD, funding) ---------- */
-    let flowScore = 0;
+    /* ---------- FLOW (OI + price, real live CVD, funding, real live liquidations) ---------- */
     let oiLabel = 'нет данных';
+    let flowFromOI = 0;
     if(oiHist && oiHist.length > 5){
       const oiStart = parseFloat(oiHist[0].sumOpenInterest);
       const oiEnd = parseFloat(oiHist[oiHist.length-1].sumOpenInterest);
@@ -384,13 +464,19 @@ async function fetchLiveData(){
       const lookback = oiHist.length;
       const pStart = closes15[Math.max(0, closes15.length-1-lookback)];
       const priceChangePct = (price-pStart)/pStart;
-      let flowFromOI = 0;
       if(priceChangePct>0 && oiChangePct>0) { flowFromOI=1; oiLabel='новые лонги'; }
       else if(priceChangePct>0 && oiChangePct<=0){ flowFromOI=0.4; oiLabel='шорт-каверинг'; }
       else if(priceChangePct<0 && oiChangePct>0){ flowFromOI=-1; oiLabel='новые шорты'; }
       else { flowFromOI=-0.4; oiLabel='закрытие лонгов'; }
+    }
 
-      // CVD approximation from taker buy/sell volume, last 20 x 15m candles
+    // Real-time CVD from the live aggTrade tape (buyer/seller aggressor flag).
+    // Falls back to the kline taker-buy/sell approximation until enough live ticks arrive.
+    const liveCvd = realCVDScore();
+    let cvdScore;
+    if(liveCvd !== null){
+      cvdScore = liveCvd;
+    } else {
       const recentK = klines.slice(-20);
       let cum=0; const cvdSeries=[];
       recentK.forEach(k=>{
@@ -398,23 +484,33 @@ async function fetchLiveData(){
         cum += (buy-sell); cvdSeries.push(cum);
       });
       const volSum = recentK.reduce((s,k)=>s+parseFloat(k[5]),0) || 1;
-      const cvdScore = clamp((cvdSeries[cvdSeries.length-1]-cvdSeries[0])/(volSum*0.3), -1, 1);
-
-      let fundingComp = 0;
-      if(funding && funding.lastFundingRate){
-        fundingComp = clamp(parseFloat(funding.lastFundingRate)*400, -1, 1);
-      }
-      flowScore = clamp(flowFromOI*0.5 + cvdScore*0.35 + fundingComp*0.15, -1, 1);
+      cvdScore = clamp((cvdSeries[cvdSeries.length-1]-cvdSeries[0])/(volSum*0.3), -1, 1);
     }
 
-    /* ---------- LIQUIDITY (which side has the nearer magnet) ---------- */
+    let fundingComp = 0;
+    if(funding && funding.lastFundingRate){
+      fundingComp = clamp(parseFloat(funding.lastFundingRate)*400, -1, 1);
+    }
+
+    // Real-time forced-liquidation pressure from the live futures stream.
+    const liqScore = liquidationPressureScore();
+
+    const flowScore = clamp(flowFromOI*0.40 + cvdScore*0.35 + fundingComp*0.10 + liqScore*0.15, -1, 1);
+
+    /* ---------- LIQUIDITY (structural magnet + real live order-book imbalance) ---------- */
     let atr1h = computeATR(highs1h, lows1h, closes1h, 14);
-    let liquidityScore = 0;
+    let structMagnet = 0;
     if(resistances[0] && supports[0]){
       const distRes = (resistances[0]-price)/atr1h;
       const distSup = (price-supports[0])/atr1h;
-      liquidityScore = clamp((distSup-distRes)*0.35, -1, 1); // closer resistance -> price more likely to test it -> long lean, and vice versa
+      structMagnet = clamp((distSup-distRes)*0.35, -1, 1); // closer resistance -> price more likely to test it -> long lean, and vice versa
     }
+    // Real resting bid vs ask size from the live depth20 stream. Falls back to the
+    // structural-only estimate until the book has loaded.
+    const bookScore = bookImbalanceScore();
+    const liquidityScore = bookScore !== null
+      ? clamp(structMagnet*0.5 + bookScore*0.5, -1, 1)
+      : structMagnet;
 
     /* ---------- FINAL SCORE (weighted vote) ---------- */
     const weights = { trend:0.20, structure:0.20, momentum:0.20, flow:0.20, liquidity:0.10 };
@@ -451,7 +547,7 @@ async function fetchLiveData(){
 
     state = {
       price, pressure, isLong,
-      blocks: { trend: trendScore, structure: structureScore, momentum: momentumScore, flow: flowScore, liquidity: liquidityScore },
+      blocks: { trend: trendScore, structure: structureScore, momentum: momentumScore, flow: flowScore, liquidity: liquidityScore, liquidations: liqScore },
       resistances, supports, atr1h,
       entryState, entryZone, timeLabel
     };
@@ -488,7 +584,7 @@ function runScan(){
   sigWord.textContent = isLong ? 'LONG' : 'SHORT';
   sigScore.textContent = scorePct + '%';
 
-  const blockNames = { trend:'Trend', structure:'Structure', momentum:'Momentum', flow:'Flow', liquidity:'Liquidity' };
+  const blockNames = { trend:'Trend', structure:'Structure', momentum:'Momentum', flow:'Flow', liquidity:'Liquidity', liquidations:'Liquid.' };
   const blockRow = document.getElementById('blockRow');
   blockRow.innerHTML = '';
   Object.keys(blockNames).forEach(key=>{
@@ -528,6 +624,7 @@ function runScan(){
 }
 
 scanBtn.addEventListener('click', runScan);
+connectStreams();
 fetchLiveData();
 setInterval(fetchLiveData, 20000);
 
