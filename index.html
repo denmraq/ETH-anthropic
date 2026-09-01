@@ -132,20 +132,17 @@
   .time-note{ margin-top:12px; font-size:12px; color: var(--text-dim); padding-top:12px; border-top:1px dashed var(--line); }
   .time-note b{ color: var(--amber); }
 
-  .simple-toggle-row{ display:flex; align-items:center; gap:9px; margin-top:11px; }
-  .simple-toggle-label{ font-size:10.5px; color:var(--text-dim); line-height:1.4; }
-  .switch{ position:relative; display:inline-block; width:36px; height:20px; flex-shrink:0; }
-  .switch input{ opacity:0; width:0; height:0; }
-  .switch-slider{ position:absolute; cursor:pointer; inset:0; background:var(--panel-2); border:1px solid var(--line); border-radius:20px; transition:.15s; }
-  .switch-slider::before{ content:""; position:absolute; height:14px; width:14px; left:2px; top:2px; background:var(--text-dim); border-radius:50%; transition:.15s; }
-  .switch input:checked + .switch-slider{ background:var(--long-dim); border-color:var(--long); }
-  .switch input:checked + .switch-slider::before{ transform:translateX(16px); background:var(--long); }
-
-  .simple-verdict{ display:none; margin-top:14px; padding:13px 14px; border-radius:11px; font-size:13px; line-height:1.6; border:1px solid var(--line); background:rgba(0,0,0,0.25); }
-  .simple-verdict.show{ display:block; }
+  .simple-section{ margin-top:14px; }
+  .simple-label{ font-size:10px; color:var(--text-dim); letter-spacing:0.03em; text-transform:uppercase; margin-bottom:6px; }
+  .simple-verdict{ padding:13px 14px; border-radius:11px; font-size:13px; line-height:1.6; border:1px solid var(--line); background:rgba(0,0,0,0.25); }
   .simple-verdict.long{ border-color:#175943; color:var(--text); }
   .simple-verdict.short{ border-color:#66222f; color:var(--text); }
   .simple-verdict.neutral{ border-color:var(--line); color:var(--text-dim); }
+
+  .agree-badge{ display:none; margin-top:10px; font-size:11px; font-weight:700; padding:8px 10px; border-radius:8px; text-align:center; }
+  .agree-badge.show{ display:block; }
+  .agree-badge.match{ background:rgba(51,255,176,0.08); color:var(--long); border:1px solid #175943; }
+  .agree-badge.mismatch{ background:rgba(255,179,64,0.08); color:var(--amber); border:1px solid #5a3d12; }
 
   footer{ margin-top:14px; font-size:10px; color: var(--text-dim); line-height:1.5; text-align:center; }
 </style>
@@ -175,13 +172,6 @@
       <div class="price-display" id="price">—</div>
     </div>
     <button class="scan" id="scanBtn" disabled>Загружаю данные…</button>
-    <div class="simple-toggle-row">
-      <label class="switch">
-        <input type="checkbox" id="simpleToggle">
-        <span class="switch-slider"></span>
-      </label>
-      <span class="simple-toggle-label">Simple mode — только VWAP + funding, без зоопарка блоков</span>
-    </div>
   </div>
 
   <div class="result" id="result">
@@ -193,7 +183,13 @@
       </div>
 
       <div class="block-row" id="blockRow"></div>
-      <div class="simple-verdict" id="simpleVerdict"></div>
+
+      <div class="simple-section">
+        <div class="simple-label">Грубый сигнал · VWAP + funding</div>
+        <div class="simple-verdict" id="simpleVerdict"></div>
+      </div>
+
+      <div class="agree-badge" id="agreeBadge"></div>
 
       <div class="entry-block">
         <div class="row"><span>Вход</span><b id="entryState">—</b></div>
@@ -654,18 +650,22 @@ function runScan(){
   sigWord.textContent = isLong ? 'LONG' : 'SHORT';
   sigScore.textContent = scorePct + '%';
 
-  const blockRow = document.getElementById('blockRow');
-  const simpleBox = document.getElementById('simpleVerdict');
-  const simpleOn = document.getElementById('simpleToggle').checked;
+  renderBlockRow(blocks);
 
-  if(simpleOn){
-    blockRow.classList.remove('show'); blockRow.style.display = 'none';
-    simpleBox.className = 'simple-verdict show ' + simpleVerdict.cls;
-    simpleBox.textContent = simpleVerdict.text;
+  const simpleBox = document.getElementById('simpleVerdict');
+  simpleBox.className = 'simple-verdict ' + simpleVerdict.cls;
+  simpleBox.textContent = simpleVerdict.text;
+
+  const agreeBadge = document.getElementById('agreeBadge');
+  const fullDir = isLong ? 'long' : 'short';
+  if(simpleVerdict.cls === 'neutral'){
+    agreeBadge.classList.remove('show', 'match', 'mismatch');
+  } else if(simpleVerdict.cls === fullDir){
+    agreeBadge.className = 'agree-badge show match';
+    agreeBadge.textContent = '✓ Полная модель и грубый сигнал совпадают';
   } else {
-    simpleBox.classList.remove('show'); simpleBox.style.display = 'none';
-    blockRow.style.display = '';
-    renderBlockRow(blocks);
+    agreeBadge.className = 'agree-badge show mismatch';
+    agreeBadge.textContent = '⚠ Модели расходятся — будь внимательнее';
   }
 
   document.getElementById('entryState').textContent = entryState.text;
@@ -696,16 +696,6 @@ function runScan(){
 }
 
 scanBtn.addEventListener('click', runScan);
-
-const simpleToggle = document.getElementById('simpleToggle');
-try{
-  simpleToggle.checked = localStorage.getItem('ethradar_simple') === '1';
-}catch(e){}
-simpleToggle.addEventListener('change', () => {
-  try{ localStorage.setItem('ethradar_simple', simpleToggle.checked ? '1' : '0'); }catch(e){}
-  if(state) runScan();
-});
-
 connectStreams();
 fetchLiveData();
 setInterval(fetchLiveData, 20000);
