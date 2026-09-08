@@ -109,6 +109,7 @@
   .sig-score{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:22px; color: var(--text-dim); }
 
   .block-row{ display:grid; grid-template-columns: repeat(3,1fr); gap:7px; margin-top:14px; }
+  .backtest-note{ margin-top:9px; font-size:10.5px; color: var(--text-dim); line-height:1.5; }
   .block-chip{ border-radius:9px; padding:8px 6px; text-align:center; border:1px solid var(--line); background: rgba(0,0,0,0.25); }
   .block-chip .bk-name{ font-size:9.5px; color:var(--text-dim); margin-bottom:4px; }
   .block-chip .bk-val{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:12px; }
@@ -171,6 +172,7 @@
       </div>
 
       <div class="block-row" id="blockRow"></div>
+      <div class="backtest-note" id="backtestNote"></div>
 
       <div class="entry-block">
         <div class="row"><span>Вход</span><b id="entryState">—</b></div>
@@ -291,6 +293,149 @@ function clusterLevels(levels, thresholdPct){
   return clusters.map(c=>c.reduce((a,b)=>a+b,0)/c.length);
 }
 
+/* ==================================================================
+   EXPERIMENTAL BLOCKS — перенесены из разбора чужого индикатора
+   (адаптивный RSI, swing/pivot зоны, volume-weighted momentum).
+   Ни один не включается в итоговый скор "на глаз" — ниже есть
+   in-browser backtest на реальной истории Binance, который решает,
+   помогает ли блок вообще, прежде чем дать ему вес.
+   ================================================================== */
+
+function computeAdaptiveRSISeries(closes, base=14, minL=5, maxL=30, volFast=6, volSlow=24){
+  const n = closes.length;
+  const ret = new Array(n).fill(null);
+  for(let i=1;i<n;i++) ret[i] = Math.log(closes[i]) - Math.log(closes[i-1]);
+  function rollStd(arr, w, i){
+    if(i<w) return null;
+    const slice = arr.slice(i-w+1, i+1);
+    if(slice.some(x=>x===null)) return null;
+    const m = slice.reduce((a,b)=>a+b,0)/slice.length;
+    const v = slice.reduce((a,b)=>a+(b-m)*(b-m),0)/slice.length;
+    return Math.sqrt(v);
+  }
+  const gain = new Array(n).fill(0), loss = new Array(n).fill(0);
+  for(let i=1;i<n;i++){ const d=closes[i]-closes[i-1]; gain[i]=Math.max(d,0); loss[i]=Math.max(-d,0); }
+  const rsiNorm = new Array(n).fill(null);
+  if(n <= base+1) return rsiNorm;
+  let avgGain=0, avgLoss=0;
+  for(let i=1;i<=base;i++){ avgGain+=gain[i]; avgLoss+=loss[i]; }
+  avgGain/=base; avgLoss/=base;
+  for(let i=base+1;i<n;i++){
+    const rvF = rollStd(ret, volFast, i), rvS = rollStd(ret, volSlow, i);
+    const regime = (rvF && rvS && rvS>0) ? rvF/rvS : 1.0;
+    const L = Math.max(minL, Math.min(maxL, base/regime));
+    const alpha = 1.0/L;
+    avgGain = avgGain + alpha*(gain[i]-avgGain);
+    avgLoss = avgLoss + alpha*(loss[i]-avgLoss);
+    const rs = avgLoss>1e-12 ? avgGain/avgLoss : Infinity;
+    rsiNorm[i] = ((100 - 100/(1+rs)) - 50) / 50;
+  }
+  return rsiNorm;
+}
+
+function computePivotSwingSeries(highs, lows, closes, left=3, right=3){
+  // Causal-safe: a pivot at bar i is only "known" `right` bars later —
+  // matches how it would actually be usable live, no look-ahead.
+  const n = highs.length;
+  const confirmHigh = {}, confirmLow = {};
+  for(let i=left;i<n-right;i++){
+    let isH=true, isL=true;
+    for(let j=i-left;j<=i+right;j++){
+      if(j===i) continue;
+      if(highs[j]>highs[i]) isH=false;
+      if(lows[j]<lows[i]) isL=false;
+    }
+    if(isH && !(i+right in confirmHigh)) confirmHigh[i+right]=highs[i];
+    if(isL && !(i+right in confirmLow)) confirmLow[i+right]=lows[i];
+  }
+  const distHighPct=new Array(n).fill(null), distLowPct=new Array(n).fill(null), swingPos=new Array(n).fill(null);
+  let curH=null, curL=null;
+  for(let t=0;t<n;t++){
+    if(t in confirmHigh) curH=confirmHigh[t];
+    if(t in confirmLow) curL=confirmLow[t];
+    if(curH!==null) distHighPct[t]=(curH-closes[t])/closes[t];
+    if(curL!==null) distLowPct[t]=(closes[t]-curL)/closes[t];
+    if(curH!==null && curL!==null){
+      const rng = curH-curL;
+      swingPos[t] = rng>1e-9 ? Math.max(-1, Math.min(2,(closes[t]-curL)/rng)) : 0.5;
+    }
+  }
+  return {distHighPct, distLowPct, swingPos};
+}
+
+function computeVWMomentumSeries(closes, volumes, window=12){
+  const n = closes.length;
+  const ret = new Array(n).fill(null);
+  for(let i=1;i<n;i++) ret[i] = closes[i]/closes[i-1]-1;
+  const out = new Array(n).fill(null);
+  for(let i=window;i<n;i++){
+    let num=0, den=0;
+    for(let j=i-window+1;j<=i;j++){
+      if(ret[j]===null) continue;
+      num += ret[j]*volumes[j]; den += volumes[j];
+    }
+    out[i] = den>0 ? num/den : null;
+  }
+  return out;
+}
+
+// Cheap trend+momentum baseline, computable purely from closes history
+// (no OI/funding needed) -- used only as the backtest's comparison point.
+function backtestBaselineScore(closes, i){
+  if(i<40) return null;
+  const eS = ema(closes.slice(Math.max(0,i-17), i+1), 6);
+  const eL = ema(closes.slice(Math.max(0,i-59), i+1), 20);
+  const trend = clamp(((eS-eL)/eL)*3000, -1, 1);
+  if(i<11) return null;
+  const roc = (closes[i]-closes[i-10])/closes[i-10];
+  const momentum = clamp(roc*3000, -1, 1);
+  return clamp(trend*0.5 + momentum*0.5, -1, 1);
+}
+
+function runExperimentalBacktest(closes1h, highs1h, lows1h, volumes1h, horizon=12){
+  const n = closes1h.length;
+  const rsiNorm = computeAdaptiveRSISeries(closes1h);
+  const {swingPos} = computePivotSwingSeries(highs1h, lows1h, closes1h);
+  const vwMom = computeVWMomentumSeries(closes1h, volumes1h);
+
+  let nB=0, hitB=0, nE=0, hitE=0;
+  for(let i=40; i<n-horizon; i++){
+    const base = backtestBaselineScore(closes1h, i);
+    if(base===null) continue;
+    const actualDir = closes1h[i+horizon] > closes1h[i] ? 1 : -1;
+    const predBase = base>=0 ? 1 : -1;
+    nB++; if(predBase===actualDir) hitB++;
+
+    let expScore = base, wsum = 1, have = false;
+    if(rsiNorm[i]!==null){ expScore += rsiNorm[i]*0.5; wsum+=0.5; have=true; }
+    if(swingPos[i]!==null){
+      const swingScore = clamp((swingPos[i]-0.5)*-1.2, -1, 1); // near range low = long lean, near high = short lean
+      expScore += swingScore*0.4; wsum+=0.4; have=true;
+    }
+    if(vwMom[i]!==null){ expScore += clamp(vwMom[i]*50,-1,1)*0.4; wsum+=0.4; have=true; }
+    if(!have) continue;
+    const predExp = (expScore/wsum) >= 0 ? 1 : -1;
+    nE++; if(predExp===actualDir) hitE++;
+  }
+  return {
+    horizon,
+    baseline: { n: nB, accuracy: nB ? hitB/nB : null },
+    experimental: { n: nE, accuracy: nE ? hitE/nE : null },
+  };
+}
+
+let backtestCache = null, backtestCacheAt = 0;
+const BACKTEST_TTL_MS = 10*60*1000; // recompute at most every 10 min, cheap but no need every 20s
+
+function getBacktest(closes1h, highs1h, lows1h, volumes1h){
+  const now = Date.now();
+  if(backtestCache && (now-backtestCacheAt) < BACKTEST_TTL_MS) return backtestCache;
+  backtestCache = runExperimentalBacktest(closes1h, highs1h, lows1h, volumes1h, 12);
+  backtestCacheAt = now;
+  return backtestCache;
+}
+
+
 function pickTargets(levels, price, g1, g2, g3, dir){
   const far = levels.filter(l => Math.abs(l-price) >= g1);
   const tp1 = far[0] ?? (price + dir*g1);
@@ -307,7 +452,7 @@ async function fetchLiveData(){
   try{
     const [klRes, structRes, h4Res, oiRes, fundRes] = await Promise.all([
       fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=80'),
-      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1h&limit=200'),
+      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1h&limit=500'),
       fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=4h&limit=100'),
       fetch('https://fapi.binance.com/futures/data/openInterestHist?symbol=ETHUSDT&period=15m&limit=30').catch(()=>null),
       fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=ETHUSDT').catch(()=>null)
@@ -327,6 +472,7 @@ async function fetchLiveData(){
     const closes1h = structKlines.map(k=>parseFloat(k[4]));
     const highs1h = structKlines.map(k=>parseFloat(k[2]));
     const lows1h = structKlines.map(k=>parseFloat(k[3]));
+    const volumes1h = structKlines.map(k=>parseFloat(k[5]));
     const closes4h = h4Klines.map(k=>parseFloat(k[4]));
     const price = closes15[closes15.length-1];
 
@@ -416,10 +562,32 @@ async function fetchLiveData(){
       liquidityScore = clamp((distSup-distRes)*0.35, -1, 1); // closer resistance -> price more likely to test it -> long lean, and vice versa
     }
 
+    /* ---------- EXPERIMENTAL BLOCKS (adaptive RSI / swing / VW momentum) ---------- */
+    const rsiNormSeries = computeAdaptiveRSISeries(closes1h);
+    const swingSeries = computePivotSwingSeries(highs1h, lows1h, closes1h);
+    const vwMomSeries = computeVWMomentumSeries(closes1h, volumes1h);
+    const lastIdx = closes1h.length-1;
+    const adaptiveRsiScore = rsiNormSeries[lastIdx] ?? 0;
+    const swingPosNow = swingSeries.swingPos[lastIdx];
+    const swingScore = swingPosNow!==null && swingPosNow!==undefined ? clamp((swingPosNow-0.5)*-1.2,-1,1) : 0;
+    const vwMomentumScore = vwMomSeries[lastIdx]!==null && vwMomSeries[lastIdx]!==undefined ? clamp(vwMomSeries[lastIdx]*50,-1,1) : 0;
+
+    const backtest = getBacktest(closes1h, highs1h, lows1h, volumes1h);
+    const bAcc = backtest.baseline.accuracy, eAcc = backtest.experimental.accuracy;
+    const minSample = 100;
+    const experimentalEnabled = (bAcc!==null && eAcc!==null &&
+      backtest.baseline.n>=minSample && backtest.experimental.n>=minSample && eAcc>bAcc);
+
     /* ---------- FINAL SCORE (weighted vote) ---------- */
+    const blocks = { trend:trendScore, structure:structureScore, momentum:momentumScore, flow:flowScore, liquidity:liquidityScore };
     const weights = { trend:0.20, structure:0.20, momentum:0.20, flow:0.20, liquidity:0.10 };
+    if(experimentalEnabled){
+      blocks.adaptiveRsi = adaptiveRsiScore; weights.adaptiveRsi = 0.08;
+      blocks.swing = swingScore;             weights.swing = 0.07;
+      blocks.vwMomentum = vwMomentumScore;   weights.vwMomentum = 0.07;
+    }
     const totalW = Object.values(weights).reduce((a,b)=>a+b,0);
-    const finalRaw = (trendScore*weights.trend + structureScore*weights.structure + momentumScore*weights.momentum + flowScore*weights.flow + liquidityScore*weights.liquidity) / totalW;
+    const finalRaw = Object.keys(weights).reduce((s,k)=>s+blocks[k]*weights[k],0) / totalW;
     const pressure = clamp(Math.round(50 + finalRaw*50), 0, 100);
 
     /* ---------- TIME ENGINE (qualitative freshness of the setup) ---------- */
@@ -452,6 +620,8 @@ async function fetchLiveData(){
     state = {
       price, pressure, isLong,
       blocks: { trend: trendScore, structure: structureScore, momentum: momentumScore, flow: flowScore, liquidity: liquidityScore },
+      experimentalBlocks: { adaptiveRsi: adaptiveRsiScore, swing: swingScore, vwMomentum: vwMomentumScore },
+      experimentalEnabled, backtest,
       resistances, supports, atr1h,
       entryState, entryZone, timeLabel
     };
@@ -480,7 +650,8 @@ function labelFor(score){
 
 function runScan(){
   if(!state) return;
-  const { price, pressure, isLong, blocks, resistances, supports, atr1h, entryState, entryZone, timeLabel } = state;
+  const { price, pressure, isLong, blocks, experimentalBlocks, experimentalEnabled, backtest,
+          resistances, supports, atr1h, entryState, entryZone, timeLabel } = state;
   const strength = Math.abs(pressure-50)/50;
   const scorePct = Math.round(60 + strength*35);
 
@@ -489,6 +660,7 @@ function runScan(){
   sigScore.textContent = scorePct + '%';
 
   const blockNames = { trend:'Trend', structure:'Structure', momentum:'Momentum', flow:'Flow', liquidity:'Liquidity' };
+  const expNames = { adaptiveRsi:'Adaptive RSI', swing:'Swing Zone', vwMomentum:'VW Momentum' };
   const blockRow = document.getElementById('blockRow');
   blockRow.innerHTML = '';
   Object.keys(blockNames).forEach(key=>{
@@ -499,6 +671,21 @@ function runScan(){
     chip.innerHTML = `<div class="bk-name">${blockNames[key]}</div><div class="bk-val">${val}</div>`;
     blockRow.appendChild(chip);
   });
+  Object.keys(expNames).forEach(key=>{
+    const dir = experimentalEnabled ? labelFor(experimentalBlocks[key]) : 'neutral';
+    const chip = document.createElement('div');
+    chip.className = 'block-chip ' + dir;
+    chip.style.opacity = experimentalEnabled ? '1' : '0.45';
+    const val = experimentalEnabled ? (dir==='long'?'LONG':dir==='short'?'SHORT':'НЕЙТР') : 'НЕ В ВЕСЕ';
+    chip.innerHTML = `<div class="bk-name">${expNames[key]}</div><div class="bk-val">${val}</div>`;
+    blockRow.appendChild(chip);
+  });
+
+  const bt = backtest;
+  const btLine = (bt && bt.baseline.accuracy!==null && bt.experimental.accuracy!==null)
+    ? `Backtest (посл. ~${bt.baseline.n} 1h баров, горизонт ${bt.horizon}ч): baseline ${(bt.baseline.accuracy*100).toFixed(1)}% vs +experimental ${(bt.experimental.accuracy*100).toFixed(1)}% → ${experimentalEnabled ? 'включены в скор' : 'не подтвердили преимущество, исключены из скора'}`
+    : 'Backtest недостаточно данных';
+  document.getElementById('backtestNote').textContent = btLine;
 
   document.getElementById('entryState').textContent = entryState.text;
   document.getElementById('entryState').className = entryState.cls;
@@ -526,6 +713,7 @@ function runScan(){
 
   result.classList.add('show');
 }
+
 
 scanBtn.addEventListener('click', runScan);
 fetchLiveData();

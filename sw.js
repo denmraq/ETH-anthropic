@@ -1,4 +1,4 @@
-const CACHE = 'eth-radar-v6';
+const CACHE = 'eth-radar-v7';
 const ASSETS = ['./index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
