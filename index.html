@@ -424,15 +424,10 @@ function runExperimentalBacktest(closes1h, highs1h, lows1h, volumes1h, horizon=1
   };
 }
 
-let backtestCache = null, backtestCacheAt = 0;
-const BACKTEST_TTL_MS = 10*60*1000; // recompute at most every 10 min, cheap but no need every 20s
-
+// Cheap enough (~500 simple-loop iterations) to just recompute every scan —
+// no caching, so it can never go stale across app resumes/PWA suspends.
 function getBacktest(closes1h, highs1h, lows1h, volumes1h){
-  const now = Date.now();
-  if(backtestCache && (now-backtestCacheAt) < BACKTEST_TTL_MS) return backtestCache;
-  backtestCache = runExperimentalBacktest(closes1h, highs1h, lows1h, volumes1h, 12);
-  backtestCacheAt = now;
-  return backtestCache;
+  return runExperimentalBacktest(closes1h, highs1h, lows1h, volumes1h, 12);
 }
 
 
@@ -451,11 +446,11 @@ let state = null; // holds everything computed on last fetch
 async function fetchLiveData(){
   try{
     const [klRes, structRes, h4Res, oiRes, fundRes] = await Promise.all([
-      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=80'),
-      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1h&limit=500'),
-      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=4h&limit=100'),
-      fetch('https://fapi.binance.com/futures/data/openInterestHist?symbol=ETHUSDT&period=15m&limit=30').catch(()=>null),
-      fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=ETHUSDT').catch(()=>null)
+      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=15m&limit=80', {cache:'no-store'}),
+      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=1h&limit=500', {cache:'no-store'}),
+      fetch('https://api.binance.com/api/v3/klines?symbol=ETHUSDT&interval=4h&limit=100', {cache:'no-store'}),
+      fetch('https://fapi.binance.com/futures/data/openInterestHist?symbol=ETHUSDT&period=15m&limit=30', {cache:'no-store'}).catch(()=>null),
+      fetch('https://fapi.binance.com/fapi/v1/premiumIndex?symbol=ETHUSDT', {cache:'no-store'}).catch(()=>null)
     ]);
     if(!klRes.ok || !structRes.ok || !h4Res.ok) throw new Error('klines fail');
     const klines = await klRes.json();
